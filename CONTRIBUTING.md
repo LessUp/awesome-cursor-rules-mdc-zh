@@ -5,7 +5,7 @@
 ## 🤝 如何贡献
 
 ### 报告问题
-- 使用 [GitHub Issues](https://github.com/awesome-cursor-rules/awesome-cursor-rules-mdc-zh/issues) 报告翻译错误、技术问题或提出改进建议
+- 使用 [GitHub Issues](https://github.com/LessUp/awesome-cursor-rules-mdc-zh/issues) 报告翻译错误、技术问题或提出改进建议
 - 请使用相应的 Issue 模板
 - 提供详细的问题描述和重现步骤
 
@@ -53,7 +53,7 @@
 ### 本地开发
 ```bash
 # 克隆仓库
-git clone https://github.com/awesome-cursor-rules/awesome-cursor-rules-mdc-zh.git
+git clone https://github.com/LessUp/awesome-cursor-rules-mdc-zh.git
 cd awesome-cursor-rules-mdc-zh
 
 # 安装依赖（如果有）
@@ -121,7 +121,7 @@ npm run check-translations
 如果您在贡献过程中遇到任何问题：
 
 - 查看 [FAQ](docs/faq.md)
-- 在 [GitHub Discussions](https://github.com/awesome-cursor-rules/awesome-cursor-rules-mdc-zh/discussions) 中提问
+- 在 [GitHub Discussions](https://github.com/LessUp/awesome-cursor-rules-mdc-zh/discussions) 中提问
 - 通过 Issue 寻求帮助
 
 ## 🙏 致谢
@@ -131,18 +131,3 @@ npm run check-translations
 ---
 
 **让我们一起为中国开发者社区构建最好的中文编码规范库！** 🚀
-
-# 贡献指南
-
-欢迎参与awesome-cursor-rules-mdc中文翻译项目！在提交贡献前请阅读本指南。
-
-## 贡献流程
-1. 在Issue中认领翻译任务
-2. 创建分支进行翻译
-3. 提交Pull Request
-4. 通过评审后合并
-
-## 翻译规范
-- 技术术语：保持与中文技术社区一致
-- 代码块：保留原始格式，不翻译
-- 段落结构：保持与原文一致

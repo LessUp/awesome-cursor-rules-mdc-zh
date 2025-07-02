@@ -75,21 +75,19 @@ jobs:
         console.log('🎉 所有文件 YAML 格式验证通过！');
         "
 
-    - name: 检查翻译一致性
+    - name: 检查术语词典文件
       run: |
-        echo "检查技术术语翻译一致性..."
+        echo "检查术语词典文件是否存在..."
         node -e "
         const fs = require('fs');
         const path = require('path');
         
-        // 读取术语词典
         const terminologyPath = 'docs/terminology.md';
-        if (!fs.existsSync(terminologyPath)) {
-          console.log('⚠️ 术语词典不存在，跳过一致性检查');
-          process.exit(0);
+        if (fs.existsSync(terminologyPath)) {
+          console.log('✅ 术语词典文件 (terminology.md) 存在。');
+        } else {
+          console.log('⚠️ 未找到术语词典文件，跳过一致性检查。');
         }
-        
-        console.log('✅ 术语词典存在，翻译一致性检查通过');
         "
 
     - name: 生成翻译报告
@@ -127,11 +125,11 @@ jobs:
         find rules-mdc-zh -name "*.mdc" -size +100k -exec echo "⚠️ 文件过大: {}" \;
         echo "✅ 文件大小检查完成"
 
-    - name: 检查重复内容
+    - name: 检查重复文件名
       run: |
-        echo "检查重复内容..."
+        echo "检查是否有重复的文件名..."
         # 简单的重复检查
         find rules-mdc-zh -name "*.mdc" -exec basename {} \; | sort | uniq -d | while read file; do
           echo "⚠️ 发现重复文件名: $file"
         done
-        echo "✅ 重复内容检查完成"
+        echo "✅ 重复文件名检查完成"
