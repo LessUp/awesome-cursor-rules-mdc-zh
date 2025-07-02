@@ -1,0 +1,15 @@
+---
+description: Next.js 14中服务器组件数据获取规则。
+globs: **/app/**/*.tsx
+---
+- 在服务器组件中获取数据（.tsx文件）：
+  tsx
+  async function getData() {
+    const res = await fetch('https://api.example.com/data', { next: { revalidate: 3600 } })
+    if (!res.ok) throw new Error('Failed to fetch data')
+    return res.json()
+  }
+  export default async function Page() {
+    const data = await getData()
+    // 使用数据渲染组件
+  }

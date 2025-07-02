@@ -1,0 +1,479 @@
+---
+description: Ruby 开发的综合最佳实践，涵盖代码组织、常见模式、性能、安全性、测试和工具。本指南提供可操作的建议，以提高 Ruby 代码质量、可维护性和效率。
+globs: "*.rb"
+---
+# Ruby 最佳实践
+
+本文档概述了 Ruby 开发的最佳实践，以确保代码质量、可维护性、性能和安全性。它涵盖了 Ruby 项目的各个方面，从代码结构到测试和部署。
+
+## 1. 代码组织和结构
+
+### 目录结构最佳实践
+
+遵循一致且定义良好的目录结构使 Ruby 项目更易于导航和维护。以下是推荐的结构，特别适用于 Rails 应用程序，但也可适用于其他 Ruby 项目：
+
+```
+project_root/
+├── app/
+│   ├── models/
+│   ├── controllers/
+│   ├── views/
+│   ├── helpers/
+│   ├── mailers/
+│   ├── assets/
+│   │   ├── stylesheets/
+│   │   ├── javascripts/
+│   │   └── images/
+│   └── jobs/
+├── config/
+│   ├── routes.rb
+│   ├── database.yml
+│   ├── environments/
+│   │   ├── development.rb
+│   │   ├── test.rb
+│   │   └── production.rb
+│   └── application.rb
+├── db/
+│   ├── migrate/
+│   └── seeds.rb
+├── lib/
+│   ├── tasks/
+│   └── modules/
+├── log/
+├── public/
+├── test/
+│   ├── models/
+│   ├── controllers/
+│   ├── integration/
+│   ├── fixtures/
+│   └── support/
+├── vendor/
+│   └── cache/
+├── Gemfile
+├── Gemfile.lock
+├── Rakefile
+└── README.md
+```
+
+- **app/：** 包含核心应用程序代码，组织为模型、控制器、视图、助手、邮件程序、资源和作业。
+- **config/：** 保存配置文件，包括路由、数据库设置、环境特定配置和主应用程序配置。
+- **db/：** 包含数据库相关文件，如迁移脚本和种子数据。
+- **lib/：** 用于自定义模块、工具类和不适合 app/ 目录的可重用代码。
+- **log/：** 存储应用程序日志。
+- **public/：** 包含静态资源，如 HTML 文件、图像和编译的 JavaScript/CSS。
+- **test/：** 保存测试文件，组织结构镜像 app/ 目录。
+- **vendor/：** 存储第三方代码、gem 或库。
+- **Gemfile：** 指定项目所需的 gem（Ruby 包）。
+- **Rakefile：** 定义 Rake 任务以自动化常见开发任务。
+
+### 文件命名约定
+
+一致的文件命名提高可读性和可维护性。遵循这些约定：
+
+- **模型：** 使用单数名称（例如，`user.rb`、`product.rb`）。
+- **控制器：** 使用复数名称（例如，`users_controller.rb`、`products_controller.rb`）。
+- **视图：** 使用相应的控制器和操作名称（例如，`users/index.html.erb`、`products/show.html.erb`）。
+- **助手：** 使用相应的控制器名称加 `_helper` 后缀（例如，`users_helper.rb`、`products_helper.rb`）。
+- **迁移：** 使用带时间戳的描述性名称（例如，`20240101000000_create_users.rb`）。
+- **作业：** 使用带 `_job` 后缀的描述性名称（例如，`send_email_job.rb`）。
+
+### 模块组织
+
+模块提供了一种将代码组织成逻辑组并避免命名空间冲突的方法。使用模块封装相关类和方法：
+
+```ruby
+module MyModule
+  class MyClass
+    def my_method
+      # ...
+    end
+  end
+end
+```
+
+- 在 `lib/modules/` 目录中组织模块。
+- 使用命名空间避免命名冲突。
+- 考虑将复杂逻辑提取到单独的模块中。
+
+### 组件架构建议
+
+对于较大的应用程序，考虑基于组件的架构。这涉及将应用程序分解为独立、可重用的组件：
+
+- **定义组件：** 识别逻辑组件（例如，用户身份验证、支付处理、数据分析）。
+- **封装逻辑：** 每个组件应封装自己的逻辑、数据和依赖项。
+- **暴露接口：** 为组件之间的交互定义清晰的接口。
+- **使用 Gem 或内部库：** 将组件打包为 gem 或内部库，以便在多个项目中重用。
+
+### 代码分割策略
+
+代码分割可以通过减少一次需要加载的代码量来提高性能。常见策略包括：
+
+- **延迟加载：** 仅在需要时加载代码。这可以通过使用 `require` 或 `autoload` 实现。
+- **条件加载：** 基于某些条件加载代码（例如，用户角色、功能标志）。
+- **服务对象：** 将大型控制器/模型分解为可根据需要加载的服务对象。
+
+## 2. 常见模式和反模式
+
+### 设计模式
+
+- **单例：** 确保类只有一个实例并提供对它的全局访问点。
+
+```ruby
+class Configuration
+  @instance = Configuration.new
+
+  private_class_method :new
+
+  def self.instance
+    @instance
+  end
+end
+```
+
+- **观察者：** 定义对象之间的一对多依赖关系，以便当一个对象改变状态时，所有依赖者都会被通知并自动更新。
+
+```ruby
+class Subject
+  attr_accessor :observers
+
+  def initialize
+    @observers = []
+  end
+
+  def attach(observer)
+    @observers << observer
+  end
+
+  def detach(observer)
+    @observers.delete(observer)
+  end
+
+  def notify
+    @observers.each { |observer| observer.update(self) }
+  end
+end
+```
+
+- **工厂：** 提供创建对象的接口而不指定其具体类。
+
+```ruby
+class AnimalFactory
+  def self.create(type)
+    case type
+    when :dog
+      Dog.new
+    when :cat
+      Cat.new
+    else
+      raise "Unknown animal type"
+    end
+  end
+end
+```
+
+- **策略：** 定义算法族，封装每一个，并使它们可互换。策略让算法独立于使用它的客户端而变化。
+
+```ruby
+class PaymentProcessor
+  def initialize(strategy)
+    @strategy = strategy
+  end
+
+  def process_payment(amount)
+    @strategy.process(amount)
+  end
+end
+```
+
+### 常见任务的推荐方法
+
+- **数据验证：** 使用 ActiveRecord 验证确保数据完整性。
+- **身份验证：** 使用 Devise gem 进行身份验证。
+- **授权：** 使用 CanCanCan 或 Pundit gem 进行授权。
+- **后台处理：** 使用 Sidekiq 或 Resque 进行后台作业。
+- **API 开发：** 使用 Rails API 或 Grape gem 构建 API。
+
+### 反模式和代码异味
+
+- **胖模型：** 包含过多业务逻辑的模型。将逻辑移到服务对象或 PORO 中。
+- **上帝类：** 做太多事情的类。将它们分解为更小、更专注的类。
+- **重复代码：** 在多个地方重复的代码。遵循 DRY 原则并将其提取到共享方法或模块中。
+- **长方法：** 过长和复杂的方法。将它们分解为更小、更专注的方法。
+- **魔法数字：** 难以理解的硬编码数值。使用常量或枚举代替。
+
+### 状态管理最佳实践
+
+- **会话：** 使用 Rails 会话存储用户特定数据。
+- **Cookie：** 使用 cookie 在客户端存储少量数据。
+- **缓存：** 使用 Rails 缓存存储频繁访问的数据。
+- **数据库：** 使用数据库存储持久数据。
+- **Redis/Memcached：** 用于复杂状态数据或后台作业处理。
+
+### 错误处理模式
+
+- **异常：** 使用异常处理意外错误。
+
+```ruby
+begin
+  # 可能引发异常的代码
+rescue SomeException => e
+  # 处理异常
+  Rails.logger.error("Error: #{e.message}")
+end
+```
+
+- **错误对象：** 使用错误对象处理预期错误。
+
+```ruby
+class Result
+  attr_reader :success, :error, :data
+
+  def initialize(success:, error: nil, data: nil)
+    @success = success
+    @error = error
+    @data = data
+  end
+
+  def self.success(data: nil)
+    new(success: true, data: data)
+  end
+
+  def self.failure(error:)
+    new(success: false, error: error)
+  end
+end
+```
+
+- **日志记录：** 记录错误以进行调试和监控。
+
+```ruby
+Rails.logger.error("Error: Something went wrong")
+```
+
+## 3. 性能考虑
+
+### 优化技术
+
+- **数据库查询：** 通过使用索引、预加载和避免 N+1 查询来优化数据库查询。
+
+```ruby
+# N+1 查询问题
+users = User.all
+users.each { |user| puts user.posts.count } # 每个用户一个查询
+
+# 预加载解决 N+1
+users = User.includes(:posts).all
+users.each { |user| puts user.posts.count } # 只有两个查询
+```
+
+- **缓存：** 使用缓存减少数据库负载并提高响应时间。
+
+```ruby
+Rails.cache.fetch("user_count", expires_in: 1.hour) do
+  User.count
+end
+```
+
+- **代码分析：** 使用代码分析工具识别性能瓶颈。
+- **垃圾回收：** 了解 Ruby 垃圾回收的工作原理并优化内存使用。
+- **使用高效算法：** 为性能关键操作选择适当的算法和数据结构。
+
+### 内存管理
+
+- **避免内存泄漏：** 小心创建永远不会被垃圾回收的对象。
+- **使用对象池：** 重用对象而不是创建新对象。
+- **最小化对象创建：** 减少在代码性能关键部分创建的对象数量。
+
+### 包大小优化
+
+- **删除未使用的 Gem：** 识别并删除未使用的 gem。
+- **使用轻量级 Gem：** 在可能的情况下选择更小、更高效的 gem。
+- **压缩资源：** 压缩 CSS、JavaScript 和图像资源。
+
+### 延迟加载策略
+
+- **延迟加载关联：** 在关联中使用 `lazy_load: true` 选项。
+- **延迟加载代码：** 使用 `require` 或 `autoload` 仅在需要时加载代码。
+
+## 4. 安全最佳实践
+
+### 常见漏洞
+
+- **SQL 注入：** 通过使用参数化查询和避免在 SQL 查询中使用字符串插值来防止 SQL 注入。
+
+```ruby
+# 不安全
+User.where("email = '#{params[:email]}'")
+
+# 安全
+User.where(email: params[:email])
+```
+
+- **跨站脚本（XSS）：** 通过转义用户输入和使用内容安全策略防止 XSS。
+
+```erb
+<%= sanitize @user.bio %> # 清理用户输入
+```
+
+- **跨站请求伪造（CSRF）：** 通过使用 CSRF 令牌防止 CSRF。
+- **批量赋值：** 通过使用强参数防止批量赋值漏洞。
+
+```ruby
+def user_params
+  params.require(:user).permit(:name, :email, :password, :password_confirmation)
+end
+```
+
+### 输入验证
+
+- **验证用户输入：** 始终验证用户输入以确保其符合预期标准。
+- **清理用户输入：** 清理用户输入以删除潜在有害字符。
+- **使用强参数：** 使用强参数防止批量赋值漏洞。
+
+### 身份验证和授权
+
+- **使用 Devise：** 使用 Devise gem 进行身份验证。
+- **使用 CanCanCan 或 Pundit：** 使用 CanCanCan 或 Pundit gem 进行授权。
+- **实施基于角色的访问控制（RBAC）：** 实施 RBAC 根据用户角色控制对资源的访问。
+
+### 数据保护
+
+- **加密敏感数据：** 加密密码和 API 密钥等敏感数据。
+- **使用 HTTPS：** 使用 HTTPS 加密客户端和服务器之间的通信。
+- **安全存储密码：** 使用 bcrypt 或其他安全密码哈希算法。
+
+### 安全的 API 通信
+
+- **使用 API 密钥：** 使用 API 密钥验证 API 请求。
+- **实施速率限制：** 实施速率限制防止滥用。
+- **使用 OAuth：** 使用 OAuth 进行安全授权。
+
+## 5. 测试方法
+
+### 单元测试
+
+- **测试单个组件：** 编写单元测试以独立测试单个组件。
+- **使用模拟和存根：** 使用模拟和存根将组件与外部依赖项隔离。
+- **测试边缘情况：** 测试边缘情况以确保代码处理意外输入或条件。
+
+### 集成测试
+
+- **测试组件之间的交互：** 编写集成测试以测试组件之间的交互。
+- **测试外部依赖项：** 测试与数据库和 API 等外部依赖项的交互。
+
+### 端到端测试
+
+- **测试整个应用程序流程：** 编写端到端测试以测试整个应用程序流程。
+- **使用 Selenium 或 Capybara：** 使用 Selenium 或 Capybara 自动化浏览器交互。
+
+### 测试组织
+
+- **镜像应用程序目录：** 在镜像 app/ 目录的目录结构中组织测试。
+- **使用描述性名称：** 为测试文件和方法使用描述性名称。
+
+### 模拟和存根
+
+- **使用 RSpec 模拟和存根：** 使用 RSpec 的模拟和存根功能隔离组件。
+
+```ruby
+# 模拟
+allow(User).to receive(:find).with(1).and_return(mock_user)
+
+# 存根
+allow(mock_user).to receive(:name).and_return("John Doe")
+```
+
+## 6. 常见陷阱和注意事项
+
+### 常见错误
+
+- **不使用 ActiveRecord 验证：** 忘记在模型中验证数据可能导致数据完整性问题。
+- **不理解变量作用域：** 误解变量作用域可能导致意外行为。
+- **不处理异常：** 未能处理异常可能导致应用程序崩溃。
+- **不编写测试：** 忽略编写测试可能导致错误和回归。
+
+### 边缘情况
+
+- **处理空数据集：** 确保代码优雅地处理空数据集。
+- **处理大数据集：** 优化代码以高效处理大数据集。
+- **处理时区：** 在处理日期和时间时注意时区问题。
+
+### 版本特定问题
+
+- **Ruby 版本兼容性：** 确保代码与目标 Ruby 版本兼容。
+- **Rails 版本兼容性：** 确保代码与目标 Rails 版本兼容。
+
+### 兼容性问题
+
+- **数据库兼容性：** 注意不同数据库之间的兼容性问题。
+- **操作系统兼容性：** 注意不同操作系统之间的兼容性问题。
+
+### 调试策略
+
+- **使用调试器：** 使用调试器逐步执行代码并检查变量。
+- **使用日志记录：** 使用日志记录跟踪应用程序行为。
+- **阅读错误消息：** 仔细阅读错误消息以了解错误原因。
+- **使用 `binding.pry`：** 在代码中插入 `binding.pry` 以暂停执行并检查变量。
+
+## 7. 工具和环境
+
+### 推荐工具
+
+- **文本编辑器：** VSCode、Sublime Text、Atom、RubyMine
+- **调试器：** Byebug、RubyMine Debugger
+- **测试框架：** RSpec、Minitest
+- **代码分析：** RuboCop、Reek
+- **包管理器：** Bundler
+- **版本管理器：** rbenv、rvm
+
+### 构建配置
+
+- **使用 Bundler：** 使用 Bundler 管理 gem 依赖项。
+
+```ruby
+# Gemfile
+source 'https://rubygems.org'
+
+gem 'rails', '~> 7.0'
+gem 'pg'
+```
+
+- **指定 Ruby 版本：** 在 `Gemfile` 中指定 Ruby 版本。
+
+```ruby
+# Gemfile
+ruby '3.2.2'
+```
+
+- **使用 `.env` 文件：** 使用 `.env` 文件存储环境变量。
+
+### 代码检查和格式化
+
+- **使用 RuboCop：** 使用 RuboCop 强制执行 Ruby 风格指南。
+- **配置 RuboCop：** 配置 RuboCop 以匹配项目编码标准。
+
+```yaml
+# .rubocop.yml
+AllCops:
+  TargetRubyVersion: 3.2
+  Exclude:
+    - 'vendor/*'
+
+Style/Documentation:
+  Enabled: false
+```
+
+- **使用 Prettier：** 使用 Prettier 进行代码格式化。
+
+### 部署
+
+- **使用部署工具：** 使用 Capistrano 或 Heroku 等部署工具。
+- **自动化部署：** 自动化部署过程以减少错误并提高效率。
+- **使用生产数据库：** 使用 PostgreSQL 或 MySQL 等生产级数据库。
+- **配置 Web 服务器：** 配置 Nginx 或 Apache 等 Web 服务器。
+
+### CI/CD 集成
+
+- **使用 CI/CD 工具：** 使用 Jenkins、GitLab CI 或 CircleCI 等 CI/CD 工具。
+- **自动化测试：** 将测试自动化作为 CI/CD 管道的一部分。
+- **自动化部署：** 将部署自动化作为 CI/CD 管道的一部分。

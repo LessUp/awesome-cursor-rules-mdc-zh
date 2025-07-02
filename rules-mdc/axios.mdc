@@ -1,0 +1,430 @@
+---
+description: 本规范提供了有效使用 Axios 的综合指南，涵盖最佳实践、安全考虑和性能优化。旨在提高代码质量、可维护性和使用 Axios 时应用程序的整体稳定性。
+globs: "*.js,*.jsx,*.ts,*.tsx"
+---
+# Axios 最佳实践：综合指南
+
+- **避免硬编码 URL**：将 API 端点存储在配置文件或环境变量中，以增强可维护性并避免冗余。
+- **集中化 API 逻辑**：创建专用模块或服务来封装 Axios 实例和请求逻辑。这促进了可重用性并简化了调试。
+- **优雅地处理错误**：使用 try-catch 块、响应拦截器和集中式错误日志记录实现全面的错误处理。显示用户友好的错误消息。
+- **使用异步函数**：在进行 Axios 请求时，利用 `async/await` 或 Promises 来编写更清洁、更易管理的异步代码。
+- **使用请求拦截器优化**：利用请求拦截器执行添加身份验证令牌、记录请求或转换请求数据等任务。响应拦截器可用于错误处理或数据转换。
+- **确保必要时才发送 HTTP 请求**：验证只有在真正需要时才发出请求，防止不必要的网络流量并提高性能。考虑缓存策略。
+
+## 1. 代码组织和结构
+
+### 1.1 目录结构最佳实践
+
+- 创建 `api` 或 `services` 目录来存放所有与 API 相关的代码。
+- 根据资源或功能组织 API 模块（例如，`api/users.js`、`api/products.js`）。
+- 将 Axios 实例配置分离到专用文件中（例如，`api/axios-config.js`）。
+
+```
+src/
+  ├── api/
+  │   ├── axios-config.js
+  │   ├── users.js
+  │   ├── products.js
+  │   └── auth.js
+  ├── components/
+  ├── hooks/
+  └── utils/
+```
+
+### 1.2 文件命名约定
+
+- 为 API 模块使用描述性名称（例如，`userApi.js`、`productService.js`）。
+- 遵循一致的命名约定（例如，变量使用 camelCase，组件使用 PascalCase）。
+
+### 1.3 模块组织
+
+- 从每个模块导出单独的 API 函数（例如，`getUser`、`createUser`）。
+- 使用命名导出以提高代码可读性和可维护性。
+
+```javascript
+// api/users.js
+export const getUser = (id) => axios.get(`/users/${id}`);
+export const createUser = (userData) => axios.post('/users', userData);
+export const updateUser = (id, userData) => axios.put(`/users/${id}`, userData);
+export const deleteUser = (id) => axios.delete(`/users/${id}`);
+```
+
+### 1.4 组件架构
+
+- 创建可重用的组件来处理数据获取和显示。
+- 将组件与特定的 API 调用解耦以提高可重用性。
+- 利用自定义钩子来封装数据获取逻辑。
+
+### 1.5 代码分割策略
+
+- 为不立即需要的 API 模块实现懒加载。
+- 使用动态导入按需加载模块。
+- 对于大型应用程序，考虑基于路由的代码分割。
+
+## 2. 常见模式和反模式
+
+### 2.1 Axios 特定的设计模式
+
+#### 单例模式
+使用单例模式为 Axios 实例确保整个应用程序中的单一配置。
+
+```javascript
+// api/axios-config.js
+import axios from 'axios';
+
+const apiClient = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export default apiClient;
+```
+
+#### 适配器模式
+创建适配器层将 API 响应转换为一致的格式。
+
+```javascript
+// api/adapters/userAdapter.js
+export const adaptUser = (apiUser) => ({
+  id: apiUser.user_id,
+  name: apiUser.full_name,
+  email: apiUser.email_address,
+  createdAt: new Date(apiUser.created_at),
+});
+```
+
+#### 工厂模式
+使用工厂模式创建具有特定配置的不同 Axios 实例。
+
+```javascript
+// api/factory.js
+import axios from 'axios';
+
+export const createApiClient = (config) => {
+  return axios.create({
+    baseURL: config.baseURL,
+    timeout: config.timeout || 5000,
+    headers: config.headers || {},
+  });
+};
+```
+
+### 2.2 常见任务的推荐方法
+
+#### 身份验证
+使用请求拦截器添加身份验证头（例如，JWT 令牌）。
+
+```javascript
+// api/interceptors.js
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+```
+
+#### 错误处理
+实现集中式错误处理函数来记录错误并显示用户友好的消息。
+
+```javascript
+// api/errorHandler.js
+export const handleApiError = (error) => {
+  if (error.response) {
+    // 服务器响应了错误状态码
+    console.error('API Error:', error.response.data);
+    return error.response.data.message || '服务器错误';
+  } else if (error.request) {
+    // 请求已发出但没有收到响应
+    console.error('Network Error:', error.request);
+    return '网络连接错误';
+  } else {
+    // 其他错误
+    console.error('Error:', error.message);
+    return '请求失败';
+  }
+};
+```
+
+#### 数据转换
+使用响应拦截器在数据到达组件之前转换数据。
+
+```javascript
+// api/interceptors.js
+apiClient.interceptors.response.use(
+  (response) => {
+    // 转换响应数据
+    if (response.data && response.data.data) {
+      return { ...response, data: response.data.data };
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
+```
+
+### 2.3 要避免的反模式和代码异味
+
+- **硬编码 URL**：避免在代码中直接硬编码 API 端点。
+- **重复的请求逻辑**：不要在多个组件中重复 API 请求逻辑。
+- **忽略错误**：永远不要忽略 Axios 返回的错误；始终适当地处理它们。
+
+### 2.4 状态管理最佳实践
+
+- 使用状态管理库（例如，Redux、Zustand、Recoil）来管理 API 数据。
+- 以规范化格式存储 API 响应以提高性能。
+- 利用选择器高效地从存储中派生数据。
+
+### 2.5 错误处理模式
+
+- 实现全局错误边界来捕获意外错误。
+- 根据错误类型显示用户友好的错误消息。
+- 将错误记录到中央日志记录服务以进行监控和调试。
+
+## 3. 性能考虑
+
+### 3.1 优化技术
+
+#### 缓存
+实现缓存机制以避免冗余的 API 调用。
+
+```javascript
+// utils/cache.js
+const cache = new Map();
+
+export const getCachedData = (key, fetchFunction, ttl = 300000) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < ttl) {
+    return Promise.resolve(cached.data);
+  }
+  
+  return fetchFunction().then(data => {
+    cache.set(key, { data, timestamp: Date.now() });
+    return data;
+  });
+};
+```
+
+#### 请求防抖
+对频繁的 API 请求进行防抖以减少服务器负载。
+
+```javascript
+// hooks/useDebounce.js
+import { useState, useEffect } from 'react';
+
+export const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+```
+
+#### 请求取消
+当组件卸载或用户导航离开时取消待处理的请求。
+
+```javascript
+// hooks/useApi.js
+import { useEffect, useRef } from 'react';
+import axios from 'axios';
+
+export const useApi = () => {
+  const cancelTokenRef = useRef();
+
+  useEffect(() => {
+    return () => {
+      if (cancelTokenRef.current) {
+        cancelTokenRef.current.cancel('组件卸载');
+      }
+    };
+  }, []);
+
+  const makeRequest = async (config) => {
+    cancelTokenRef.current = axios.CancelToken.source();
+    return axios({ ...config, cancelToken: cancelTokenRef.current.token });
+  };
+
+  return { makeRequest };
+};
+```
+
+### 3.2 内存管理
+
+- 不再需要时清除 Axios 实例。
+- 避免创建不必要的 Axios 实例。
+
+### 3.3 渲染优化
+
+- 使用记忆化技术防止不必要的重新渲染。
+- 为大型数据集实现分页或虚拟化列表。
+
+### 3.4 包大小优化
+
+- 使用树摇来从 Axios 库中删除未使用的代码。
+- 压缩和压缩 JavaScript 包。
+
+### 3.5 懒加载策略
+
+- 懒加载不立即需要的 API 模块。
+- 使用动态导入按需加载模块。
+
+## 4. 安全最佳实践
+
+### 4.1 常见漏洞及其预防
+
+- **跨站脚本（XSS）**：清理用户输入以防止 XSS 攻击。
+- **跨站请求伪造（CSRF）**：实施 CSRF 保护机制。
+- **中间人（MITM）攻击**：使用 HTTPS 加密客户端和服务器之间的通信。
+
+### 4.2 输入验证
+
+- 在客户端和服务器端验证用户输入。
+- 使用适当的验证库来防止注入攻击。
+
+### 4.3 身份验证和授权模式
+
+- 使用安全的身份验证协议（例如，OAuth 2.0、OpenID Connect）。
+- 实施基于角色的访问控制（RBAC）来限制对敏感数据的访问。
+
+### 4.4 数据保护策略
+
+- 对静态和传输中的敏感数据进行加密。
+- 使用适当的数据掩码技术来保护敏感信息。
+
+### 4.5 安全的 API 通信
+
+- 对所有 API 通信使用 HTTPS。
+- 实施速率限制以防止滥用。
+- 监控 API 流量以发现可疑活动。
+
+## 5. 测试方法
+
+### 5.1 单元测试策略
+
+- 使用 `axios-mock-adapter` 或 `nock` 等库模拟 Axios 请求。
+- 独立测试单个 API 函数。
+- 验证请求是否使用正确的参数和头部发出。
+
+```javascript
+// __tests__/userApi.test.js
+import axios from 'axios';
+import MockAdapter from 'axios-mock-adapter';
+import { getUser } from '../api/users';
+
+const mock = new MockAdapter(axios);
+
+describe('User API', () => {
+  afterEach(() => {
+    mock.reset();
+  });
+
+  test('应该获取用户数据', async () => {
+    const userData = { id: 1, name: '张三' };
+    mock.onGet('/users/1').reply(200, userData);
+
+    const result = await getUser(1);
+    expect(result.data).toEqual(userData);
+  });
+});
+```
+
+### 5.2 集成测试
+
+- 测试 API 模块和组件之间的交互。
+- 验证数据是否正确获取和显示。
+- 使用 Jest 或 Mocha 等测试框架。
+
+### 5.3 端到端测试
+
+- 从用户角度测试整个应用程序工作流程。
+- 使用 Cypress 或 Selenium 等测试框架。
+
+### 5.4 测试组织
+
+- 按模块或功能组织测试。
+- 为测试用例使用描述性名称。
+- 遵循一致的测试风格。
+
+### 5.5 模拟和存根
+
+- 使用模拟将组件与外部依赖项隔离。
+- 使用存根用预定义数据替换 API 响应。
+
+## 6. 常见陷阱和注意事项
+
+### 6.1 开发者常犯的错误
+
+- 忘记处理错误。
+- 使用错误的 HTTP 方法。
+- 硬编码 URL。
+- 未设置适当的头部。
+
+### 6.2 需要注意的边缘情况
+
+- 网络错误。
+- 服务器停机。
+- 速率限制。
+- API 版本控制。
+
+### 6.3 版本特定问题
+
+- 了解 Axios 版本之间的破坏性更改。
+- 查阅 Axios 文档获取特定版本信息。
+
+### 6.4 兼容性问题
+
+- 确保 Axios 与目标浏览器和环境兼容。
+- 必要时使用 polyfills。
+
+### 6.5 调试策略
+
+- 使用浏览器的开发者工具检查网络请求。
+- 将 Axios 请求和响应记录到控制台。
+- 使用 VS Code 的调试器等调试工具。
+
+## 7. 工具和环境
+
+### 7.1 推荐的开发工具
+
+- 带有 ESLint 和 Prettier 扩展的 VS Code。
+- Chrome 和 Firefox 的 Axios DevTools。
+- 用于测试 API 端点的 Postman 或 Insomnia。
+
+### 7.2 构建配置
+
+- 使用 Webpack 或 Parcel 等构建工具来打包应用程序。
+- 配置构建工具以优化包大小。
+
+### 7.3 代码检查和格式化
+
+- 使用 ESLint 和一致的规则集来强制执行代码质量。
+- 使用 Prettier 自动格式化代码。
+
+### 7.4 部署最佳实践
+
+- 将应用程序部署到安全的托管环境。
+- 为所有 API 通信配置 HTTPS。
+- 监控应用程序的错误和性能问题。
+
+### 7.5 CI/CD 集成
+
+- 将自动化测试和部署集成到 CI/CD 管道中。
+- 使用 Jenkins、GitLab CI 或 CircleCI 等 CI/CD 工具。
+
+通过遵循这些最佳实践，开发者可以有效地使用 Axios 构建健壮、可维护和高性能的应用程序。

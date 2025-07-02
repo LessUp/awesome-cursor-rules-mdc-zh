@@ -1,0 +1,9 @@
+<!-- 编程开发技术文档翻译 -->
+---
+description: 调试和测试规范
+globs: **/*.spec.ts
+---
+- 使用Jest进行单元测试
+- 测试覆盖率需达到80%以上
+- 使用Chrome DevTools进行调试
+- 禁止在生产环境使用console.log

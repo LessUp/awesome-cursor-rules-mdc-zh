@@ -1,0 +1,9 @@
+<!-- 编程开发技术文档翻译 -->
+---
+description: Novo Elements集成规范
+globs: **/*.ts
+---
+- 使用官方Novo Elements组件
+- 遵循Novo Elements设计指南
+- 使用最新Novo Elements版本
+- 自定义组件需符合Novo Elements主题

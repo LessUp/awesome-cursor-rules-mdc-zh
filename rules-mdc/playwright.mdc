@@ -1,0 +1,514 @@
+---
+description: 本规范强制执行 Playwright 测试的最佳实践和编码标准，包括稳定的选择器、测试隔离、以用户为中心的测试和性能考虑。
+globs: "*.spec.ts"
+---
+# Playwright 最佳实践：综合指南
+
+## 基本原则
+
+### 测试用户可见行为
+专注于测试用户如何与应用程序交互，而不是内部实现细节。
+
+### 隔离测试
+确保测试彼此独立，以防止级联失败并确保可预测的结果。
+
+### 避免测试第三方依赖项
+模拟或存根外部服务和 API 以隔离应用程序的行为。
+
+## 1. 代码组织和结构
+
+### 1.1 目录结构
+```
+tests/
+├── e2e/              # 端到端测试
+├── unit/             # 单元测试（如果适用，虽然 Playwright 主要用于 E2E）
+├── utils/            # 辅助函数和页面对象模型
+├── fixtures/         # 测试数据
+└── config/           # 配置文件
+```
+
+### 1.2 文件命名约定
+- 测试文件使用 `.spec.ts` 或 `.spec.js`（例如，`login.spec.ts`）
+- 将相关测试分组在同一文件中
+- 使用描述性的文件名反映测试的功能
+
+### 1.3 模块组织
+采用页面对象模型（POM）来封装 UI 元素和交互：
+
+```typescript
+// pages/LoginPage.ts
+export class LoginPage {
+  constructor(private readonly page: Page) {}
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async login(username: string, password: string) {
+    await this.page.fill('#username', username);
+    await this.page.fill('#password', password);
+    await this.page.click('#login-button');
+  }
+
+  async getErrorMessage() {
+    return await this.page.textContent('#error-message');
+  }
+}
+```
+
+### 1.4 组件架构
+围绕应用程序的组件或功能构建测试：
+
+```typescript
+// tests/auth/login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
+
+test.describe('用户认证', () => {
+  test('应该使用有效凭据成功登录', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await loginPage.login('user@example.com', 'password123');
+    
+    await expect(page).toHaveURL('/dashboard');
+  });
+});
+```
+
+### 1.5 代码分割策略
+保持测试文件简洁且专注，避免单个文件过于庞大。
+
+## 2. 常见模式和反模式
+
+### 2.1 设计模式
+
+#### 页面对象模型（POM）
+每个页面表示为一个类，包含与页面元素交互的方法。这提高了可重用性和可维护性。
+
+```typescript
+class HomePage {
+  constructor(private readonly page: Page) {}
+
+  async navigateToProducts() {
+    await this.page.click('[data-testid="products-link"]');
+  }
+
+  async searchProduct(productName: string) {
+    await this.page.fill('[data-testid="search-input"]', productName);
+    await this.page.click('[data-testid="search-button"]');
+  }
+}
+```
+
+#### 固定装置模式
+使用 Playwright 的内置固定装置管理测试设置和清理：
+
+```typescript
+import { test as base } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
+
+type TestFixtures = {
+  loginPage: LoginPage;
+};
+
+export const test = base.extend<TestFixtures>({
+  loginPage: async ({ page }, use) => {
+    const loginPage = new LoginPage(page);
+    await use(loginPage);
+  },
+});
+```
+
+### 2.2 推荐方法
+
+#### 使用 baseURL
+在 `playwright.config.ts` 中使用 `baseURL` 避免在测试中硬编码 URL：
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  use: {
+    baseURL: 'http://localhost:3000',
+  },
+});
+
+// 测试中
+await page.goto('/login'); // 而不是 'http://localhost:3000/login'
+```
+
+#### 利用期望匹配器
+使用 `expect` 匹配器进行断言：
+
+```typescript
+await expect(page.locator('#success-message')).toBeVisible();
+await expect(page.locator('#user-name')).toHaveText('张三');
+await expect(page).toHaveURL(/.*dashboard.*/);
+```
+
+#### 使用自动等待功能
+Playwright 自动等待元素变为可操作状态，提高稳定性：
+
+```typescript
+// Playwright 自动等待元素可见且可点击
+await page.click('#submit-button');
+
+// 必要时使用显式等待
+await page.waitForSelector('#loading-spinner', { state: 'hidden' });
+```
+
+### 2.3 要避免的反模式
+
+#### 硬编码 URL
+```typescript
+// ❌ 错误
+await page.goto('http://localhost:3000/login');
+
+// ✅ 正确
+await page.goto('/login');
+```
+
+#### 使用脆弱的选择器
+```typescript
+// ❌ 错误：基于 DOM 结构的 XPath
+await page.click('//div[1]/form/button[2]');
+
+// ✅ 正确：基于属性的 CSS 选择器
+await page.click('[data-testid="submit-button"]');
+```
+
+#### 编写相互依赖的测试
+```typescript
+// ❌ 错误：测试依赖于其他测试的状态
+test('应该显示用户资料', async ({ page }) => {
+  // 假设用户已经在之前的测试中登录
+  await page.goto('/profile');
+});
+
+// ✅ 正确：每个测试独立设置状态
+test('应该显示用户资料', async ({ page }) => {
+  await loginAsUser(page, 'user@example.com');
+  await page.goto('/profile');
+});
+```
+
+### 2.4 状态管理
+
+#### 保持测试无状态
+在每个测试之前重置应用程序状态：
+
+```typescript
+test.beforeEach(async ({ page }) => {
+  // 清除存储
+  await page.context().clearCookies();
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+});
+```
+
+#### 使用数据库事务或 API 调用播种数据
+```typescript
+test.beforeEach(async ({ request }) => {
+  // 通过 API 设置测试数据
+  await request.post('/api/test/seed', {
+    data: { userId: 'test-user-123' }
+  });
+});
+```
+
+### 2.5 错误处理
+
+#### 使用 try...catch 处理预期错误
+```typescript
+test('应该处理网络错误', async ({ page }) => {
+  try {
+    await page.route('**/api/data', route => route.abort());
+    await page.goto('/data-page');
+    await expect(page.locator('#error-message')).toBeVisible();
+  } catch (error) {
+    console.log('预期的网络错误:', error.message);
+  }
+});
+```
+
+#### 使用软断言
+```typescript
+test('应该验证多个元素', async ({ page }) => {
+  await expect.soft(page.locator('#title')).toHaveText('欢迎');
+  await expect.soft(page.locator('#subtitle')).toBeVisible();
+  await expect.soft(page.locator('#content')).toContainText('内容');
+  
+  // 即使前面的软断言失败，这个断言仍会执行
+  await expect(page.locator('#footer')).toBeVisible();
+});
+```
+
+## 3. 性能考虑
+
+### 3.1 优化技术
+
+#### 并行运行测试
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  workers: process.env.CI ? 2 : undefined,
+  fullyParallel: true,
+});
+```
+
+#### 开发期间重用现有服务器
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  webServer: {
+    command: 'npm run start',
+    port: 3000,
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+#### 使用代码生成器自动生成选择器
+```bash
+npx playwright codegen http://localhost:3000
+```
+
+### 3.2 内存管理
+在每个测试或测试组后关闭页面和浏览器以释放资源：
+
+```typescript
+test.afterEach(async ({ page }) => {
+  await page.close();
+});
+```
+
+## 4. 安全最佳实践
+
+### 4.1 常见漏洞
+避免在测试代码或日志中暴露敏感数据（例如，密码、API 密钥）：
+
+```typescript
+// ❌ 错误
+const password = 'super-secret-password';
+
+// ✅ 正确
+const password = process.env.TEST_PASSWORD || 'default-test-password';
+```
+
+### 4.2 输入验证
+测试输入验证以确保应用程序正确处理无效数据：
+
+```typescript
+test('应该拒绝无效邮箱', async ({ page }) => {
+  await page.fill('#email', 'invalid-email');
+  await page.click('#submit');
+  await expect(page.locator('#email-error')).toHaveText('请输入有效的邮箱地址');
+});
+```
+
+### 4.3 身份验证和授权
+测试不同的用户角色和权限：
+
+```typescript
+test('管理员应该能够访问管理面板', async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto('/admin');
+  await expect(page.locator('#admin-panel')).toBeVisible();
+});
+
+test('普通用户不应该能够访问管理面板', async ({ page }) => {
+  await loginAsUser(page);
+  await page.goto('/admin');
+  await expect(page.locator('#access-denied')).toBeVisible();
+});
+```
+
+### 4.4 安全的 API 通信
+测试 API 调用是否通过 HTTPS 进行：
+
+```typescript
+test('应该通过 HTTPS 进行 API 调用', async ({ page }) => {
+  let apiCalled = false;
+  
+  await page.route('**/api/**', route => {
+    expect(route.request().url()).toMatch(/^https:/);
+    apiCalled = true;
+    route.continue();
+  });
+  
+  await page.goto('/data-page');
+  expect(apiCalled).toBe(true);
+});
+```
+
+## 5. 测试方法
+
+### 5.1 端到端测试
+模拟用户流程测试整个应用程序：
+
+```typescript
+test('完整的购买流程', async ({ page }) => {
+  // 登录
+  await page.goto('/login');
+  await page.fill('#email', 'user@example.com');
+  await page.fill('#password', 'password');
+  await page.click('#login-button');
+  
+  // 添加商品到购物车
+  await page.goto('/products');
+  await page.click('[data-testid="add-to-cart-1"]');
+  
+  // 结账
+  await page.goto('/cart');
+  await page.click('#checkout-button');
+  await page.fill('#card-number', '4111111111111111');
+  await page.click('#place-order');
+  
+  // 验证订单确认
+  await expect(page.locator('#order-confirmation')).toBeVisible();
+});
+```
+
+### 5.2 测试组织
+使用 `describe` 块组织测试：
+
+```typescript
+test.describe('用户管理', () => {
+  test.describe('用户注册', () => {
+    test('应该成功注册新用户', async ({ page }) => {
+      // 测试逻辑
+    });
+    
+    test('应该拒绝重复邮箱', async ({ page }) => {
+      // 测试逻辑
+    });
+  });
+});
+```
+
+### 5.3 模拟和存根
+使用 Playwright 的 `route` API 模拟 API 响应：
+
+```typescript
+test('应该处理 API 错误', async ({ page }) => {
+  await page.route('**/api/users', route => {
+    route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: '服务器错误' })
+    });
+  });
+  
+  await page.goto('/users');
+  await expect(page.locator('#error-message')).toHaveText('加载用户失败');
+});
+```
+
+## 6. 常见陷阱和注意事项
+
+### 6.1 常见错误
+- 使用 XPath 而不是 CSS 选择器
+- 不使用自动等待功能
+- 编写不稳定的测试
+
+### 6.2 边缘情况
+- 处理不同的屏幕尺寸和设备
+- 测试错误条件和边缘情况
+
+### 6.3 调试策略
+
+#### 使用 Playwright Inspector
+```bash
+npx playwright test --debug
+```
+
+#### 使用暂停功能
+```typescript
+test('调试测试', async ({ page }) => {
+  await page.goto('/login');
+  await page.pause(); // 暂停执行以检查页面
+  await page.fill('#email', 'test@example.com');
+});
+```
+
+#### 配置调试高亮
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  use: {
+    trace: 'on-first-retry',
+    video: 'on',
+    screenshot: 'only-on-failure',
+  },
+});
+```
+
+## 7. 工具和环境
+
+### 7.1 推荐的开发工具
+- 带有 Playwright 扩展的 VS Code
+- TypeScript 用于类型安全和自动完成
+
+### 7.2 代码检查和格式化
+使用 ESLint 和 Prettier 强制执行代码风格：
+
+```json
+// .eslintrc.js
+{
+  "extends": ["@playwright/eslint-plugin"],
+  "rules": {
+    "@playwright/missing-playwright-await": "error"
+  }
+}
+```
+
+### 7.3 CI/CD 集成
+将 Playwright 与 CI/CD 工具集成：
+
+```yaml
+# .github/workflows/playwright.yml
+name: Playwright Tests
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 18
+    - name: Install dependencies
+      run: npm ci
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+    - name: Run Playwright tests
+      run: npx playwright test
+    - uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30
+```
+
+## 最佳实践总结
+
+### 稳定的选择器
+优先使用基于 `data-testid` 或 `data-test-id` 等属性的 CSS 选择器，而不是 XPath 或脆弱的 CSS 类名。
+
+### 利用自动等待
+Playwright 在执行操作之前自动等待元素变为可操作状态。尽可能避免显式等待。
+
+### Web 优先断言
+使用 `expect` 断言，它们会重试并等待条件满足，有助于避免不稳定性。
+
+### 定期审查和更新
+定期审查和更新测试套件以反映应用程序的更改，并使用一致的命名约定记录测试。
+
+通过遵循这些最佳实践，您可以创建健壮、可维护且高效的 Playwright 测试套件。

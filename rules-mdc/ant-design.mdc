@@ -1,0 +1,311 @@
+---
+description: 本规范为在 React 应用程序中使用 Ant Design (antd) UI 库的项目制定最佳实践和编码标准。涵盖代码组织、性能、安全、测试和常见陷阱，确保应用程序的可维护性和高效性。
+globs: "*.js,*.jsx,*.ts,*.tsx"
+---
+# Ant Design (antd) 最佳实践和编码标准
+
+本文档概述了使用 Ant Design (antd) UI 库开发 React 应用程序的推荐最佳实践。遵循这些指导原则将构建更可维护、高性能和安全的应用程序。
+
+## 1. 代码组织和结构
+
+### 1.1. 目录结构
+
+- **`src/components/`**: 包含可重用的 React 组件，包括使用 antd 组件的组件。
+- **`src/pages/`**: 包含表示不同应用程序路由或页面的组件。
+- **`src/layouts/`**: 包含为页面提供一致结构的布局组件。
+- **`src/services/`**: 包含与 API 交互和处理数据获取的模块。
+- **`src/utils/`**: 包含工具函数和辅助模块。
+- **`src/styles/`**: 包含全局样式、主题自定义和组件特定样式表。
+- **`src/assets/`**: 包含静态资源，如图像、字体和图标。
+- **`src/context/`**: （可选）如果使用 Context API，在此存储所有上下文定义文件。
+
+示例：
+
+```
+my-app/
+├── src/
+│   ├── components/
+│   │   ├── Button.jsx
+│   │   ├── Input.jsx
+│   │   └── ...
+│   ├── pages/
+│   │   ├── HomePage.jsx
+│   │   ├── LoginPage.jsx
+│   │   └── ...
+│   ├── layouts/
+│   │   ├── MainLayout.jsx
+│   │   └── ...
+│   ├── services/
+│   │   ├── api.js
+│   │   └── ...
+│   ├── utils/
+│   │   ├── date-formatter.js
+│   │   └── ...
+│   ├── styles/
+│   │   ├── global.css
+│   │   ├── theme.js
+│   │   └── ...
+│   ├── App.jsx
+│   └── index.js
+└── ...
+```
+
+### 1.2. 文件命名约定
+
+- **组件**: 组件文件名使用 PascalCase（例如，`MyComponent.jsx`、`UserProfile.tsx`）。
+- **样式**: 样式文件名使用 kebab-case（例如，`my-component.css`、`user-profile.module.scss`）。
+- **模块**: 模块文件名使用 camelCase（例如，`api.js`、`dateFormatter.ts`）。
+
+### 1.3. 模块组织
+
+- 将相关的组件、样式和资源分组在同一目录中。
+- 为 API 交互、数据转换和工具函数创建单独的模块。
+
+### 1.4. 组件架构
+
+- **展示型组件**: 专注于渲染 UI 元素并通过 props 接收数据。
+- **容器型组件**: 处理数据获取、状态管理和逻辑，将数据传递给展示型组件。
+- 尽可能使用带有钩子的函数组件，以提高简洁性和可重用性。
+
+### 1.5. 代码分割
+
+- 利用 React.lazy 和 Suspense 按需加载组件，提高初始加载时间。
+- 将路由分割为单独的块以最小化初始包大小。
+- 考虑对不常用的组件或模块使用动态导入。
+
+示例：
+
+```jsx
+import React, { Suspense } from 'react';
+
+const MyComponent = React.lazy(() => import('./MyComponent'));
+
+function MyPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MyComponent />
+    </Suspense>
+  );
+}
+```
+
+## 2. 常见模式和反模式
+
+### 2.1. 设计模式
+
+- **高阶组件（HOCs）**: 用于横切关注点，如身份验证或数据获取。尽可能优先使用钩子。
+- **渲染属性**: HOCs 的替代方案，用于在组件之间共享代码。尽可能优先使用钩子。
+- **复合组件**: 创建具有隐式状态共享的可重用组件（例如，`Tabs` 和 `Tab` 组件）。
+
+### 2.2. 推荐方法
+
+- **表单处理**: 使用 `antd` 的 `Form` 组件管理表单状态、验证和提交。
+- **数据显示**: 利用 `antd` 的 `Table`、`List` 和 `Card` 组件进行结构化数据展示。
+- **导航**: 使用 `antd` 的 `Menu` 和 `Breadcrumb` 组件创建直观的导航。
+
+### 2.3. 反模式和代码异味
+
+- **直接 DOM 操作**: 避免直接操作 DOM；让 React 管理更新。
+- **过度依赖 `any` 类型**: 在 TypeScript 中使用 `any` 违背了静态类型的目的。提供明确的类型。
+- **修改 Props**: 将 props 视为只读，避免直接修改它们。
+- **内联样式**: 将样式保存在 CSS 文件中或使用 styled-components 以获得更好的组织和可维护性。对于组件特定样式，优先使用 CSS 模块或 Styled Components。
+
+### 2.4. 状态管理
+
+- **组件状态**: 对简单的本地组件状态使用 `useState`。
+- **Context API**: 用于在多个组件之间共享状态而无需属性钻取。
+- **Redux/Zustand**: 考虑用于具有全局状态和可预测状态转换的复杂应用程序。
+- **MobX**: 考虑用于复杂应用程序，您希望观察数据变化并从该数据派生计算。
+
+### 2.5. 错误处理
+
+- **Try-Catch 块**: 用于处理同步错误。
+- **错误边界**: 用于在渲染期间捕获错误并防止整个应用程序崩溃。
+- **全局错误处理**: 实现全局错误处理程序来记录错误并提供用户反馈。
+
+示例（错误边界）：
+
+```jsx
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Caught error: ', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <h1>Something went wrong.</h1>;
+    }
+
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+
+// 使用方式:
+<ErrorBoundary>
+  <MyComponent />
+</ErrorBoundary>
+```
+
+## 3. 性能考虑
+
+### 3.1. 优化技术
+
+- **记忆化**: 使用 `React.memo` 防止具有相同 props 的组件进行不必要的重新渲染。
+- **纯组件**: 对类组件扩展 `React.PureComponent` 以执行浅层 prop 比较。
+- **虚拟化**: 对大型数据集使用 `antd` 的 `Table` 和 `List` 组件的虚拟化功能。
+- **防抖/节流**: 用于触发频繁更新的事件处理程序（例如，搜索输入）。
+
+### 3.2. 内存管理
+
+- **避免内存泄漏**: 在 `useEffect` 钩子中正确清理事件监听器和计时器。
+- **释放资源**: 释放未使用的对象和数据结构以释放内存。
+
+### 3.3. 渲染优化
+
+- **ShouldComponentUpdate**: 实现 `shouldComponentUpdate`（对于类组件）或使用 `React.memo`（对于函数组件）以防止不必要的重新渲染。
+- **不可变数据**: 使用不可变数据结构简化变更检测。
+
+### 3.4. 包大小优化
+
+- **模块化导入**: 仅从 `antd` 导入必要的组件以减少包大小（例如，`import { Button } from 'antd';`）。使用 `babel-plugin-import` 进行自动模块化导入。
+- **树摇**: 确保您的构建过程支持树摇以删除未使用的代码。
+- **代码分割**: 如前所述，将代码分割为较小的块以减少初始包大小。
+
+### 3.5. 延迟加载
+
+- 使用 `React.lazy` 和 `Suspense` 按需加载组件。
+- 使用 `react-lazyload` 等库为图像和其他资源实现延迟加载。
+
+## 4. 安全最佳实践
+
+### 4.1. 常见漏洞
+
+- **跨站脚本（XSS）**: 通过清理用户输入和编码输出来防止 XSS。
+- **跨站请求伪造（CSRF）**: 通过实现 CSRF 令牌来防止 CSRF 攻击。
+- **SQL 注入**: 避免在 SQL 查询中直接嵌入用户输入；使用参数化查询或 ORM。
+
+### 4.2. 输入验证
+
+- **服务器端验证**: 始终在服务器端验证用户输入。
+- **客户端验证**: 使用 `antd` 的 `Form` 组件进行客户端验证，为用户提供即时反馈。
+- **清理输入**: 清理用户输入以删除潜在有害的字符或代码。
+
+### 4.3. 身份验证和授权
+
+- **安全身份验证**: 使用 JWT（JSON Web Tokens）或 OAuth 等安全身份验证机制。
+- **基于角色的访问控制（RBAC）**: 实现 RBAC 根据用户角色控制对应用程序不同部分的访问。
+
+### 4.4. 数据保护
+
+- **加密**: 对传输中和静态的敏感数据进行加密。
+- **数据掩码**: 在 UI 中掩码敏感数据以防止未经授权的访问。
+
+### 4.5. 安全的 API 通信
+
+- **HTTPS**: 使用 HTTPS 加密客户端和服务器之间的通信。
+- **API 速率限制**: 实现速率限制以防止滥用和拒绝服务攻击。
+
+## 5. 测试方法
+
+### 5.1. 单元测试
+
+- 独立测试单个组件以确保它们正常运行。
+- 使用 Jest 和 React Testing Library 等测试库。
+- 模拟依赖项以隔离被测试的组件。
+
+### 5.2. 集成测试
+
+- 测试多个组件或模块之间的交互。
+- 使用 React Testing Library 和 Cypress 等测试库。
+
+### 5.3. 端到端测试
+
+- 从用户角度测试整个应用程序。
+- 使用 Cypress 或 Playwright 等测试框架。
+
+### 5.4. 测试组织
+
+- 在项目根目录创建 `tests/` 目录。
+- 将测试文件放在它们测试的组件或模块旁边（例如，`MyComponent.test.jsx`）。
+- 使用描述性测试名称清楚地表明正在测试什么。
+
+### 5.5. 模拟和存根
+
+- 使用 Jest 的 `jest.mock()` 等模拟库来模拟外部依赖项。
+- 使用存根用预定义行为替换函数或方法。
+
+## 6. 常见陷阱和注意事项
+
+### 6.1. 常见错误
+
+- **不使用模块化导入**: 导入整个 `antd` 库会显著增加包大小。
+- **忽略 TypeScript 错误**: 未能解决 TypeScript 错误可能导致运行时问题。
+- **未正确处理异步操作**: 未能处理 promises 或 async/await 可能导致未处理的拒绝和意外行为。
+- **未正确本地化字符串**: 硬编码字符串而不是使用 `antd` i18n 功能。
+
+### 6.2. 边缘情况
+
+- **处理不同屏幕尺寸和设备**: 使用 `antd` 网格系统确保响应式设计。
+- **可访问性**: 使用组件时考虑可访问性，确保包含 `aria` 属性。
+- **浏览器兼容性**: 在各种浏览器（Chrome、Firefox、Safari、Edge 等）上测试应用程序。
+
+### 6.3. 版本特定问题
+
+- **破坏性变更**: 升级 `antd` 版本时注意破坏性变更。
+- **已弃用的 API**: 避免使用已弃用的 API 并迁移到推荐的替代方案。
+- **CSS 类冲突**: CSS 特异性或与全局样式冲突的潜在问题。使用 CSS 模块或 Styled Components 实现更强大的样式隔离。
+
+### 6.4. 兼容性问题
+
+- **React 版本**: 确保 `antd` 与您的 React 版本兼容。
+- **其他 UI 库**: 通过使用一致的样式和命名约定避免与其他 UI 库的冲突。
+
+### 6.5. 调试
+
+- **使用浏览器开发者工具**: 检查 DOM、网络请求和控制台输出。
+- **使用 React DevTools**: 检查组件树、props 和状态。
+- **使用日志和调试语句**: 添加 `console.log` 语句来跟踪执行流程并检查变量值。
+
+## 7. 工具和环境
+
+### 7.1. 推荐工具
+
+- **IDE**: VS Code、WebStorm。
+- **构建工具**: Webpack、Parcel、Rollup、esbuild。
+- **测试库**: Jest、React Testing Library、Cypress。
+- **代码检查**: ESLint、Prettier。
+
+### 7.2. 构建配置
+
+- **生产优化**: 使用生产特定的构建配置来最小化包大小并提高性能。
+- **配置代码分割**: 设置代码分割以按需加载组件。
+- **启用树摇**: 确保您的构建过程支持树摇以删除未使用的代码。
+
+### 7.3. 代码检查和格式化
+
+- **ESLint**: 使用带有推荐 React 和 `antd` 插件的 ESLint 来强制执行编码标准并检测潜在错误。
+- **Prettier**: 使用 Prettier 自动格式化代码以保持一致性。
+- **Stylelint**: 使用 Stylelint 强制执行一致的样式实践。
+
+### 7.4. 部署
+
+- **选择托管平台**: Netlify、Vercel、AWS、Google Cloud、Azure。
+- **配置环境变量**: 为 API 密钥、数据库凭据和其他敏感信息设置环境变量。
+- **使用 CDN**: 使用内容分发网络（CDN）缓存静态资源并提高加载时间。
+
+### 7.5. CI/CD 集成
+
+- **设置 CI/CD 管道**: 使用 Jenkins、Travis CI、CircleCI 或 GitHub Actions 等工具自动化测试、构建和部署。
+- **自动化测试**: 在 CI/CD 管道中运行单元、集成和端到端测试。
+- **自动化部署**: 自动化部署过程以减少手动工作和错误。

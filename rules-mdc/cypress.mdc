@@ -1,0 +1,341 @@
+---
+description: 本规范提供了 Cypress 最佳实践的综合指南，涵盖代码组织、性能、安全、测试策略和工具，以确保健壮且可维护的端到端测试。
+globs: "*.cy.js,*.cy.ts,*.spec.js,*.spec.ts"
+---
+# Cypress 最佳实践：综合指南
+
+本指南为使用 Cypress（一个流行的 Web 应用程序端到端测试框架）提供了一套全面的最佳实践。遵循这些指导原则将帮助您编写更健壮、可维护和高效的测试。
+
+## 1. 代码组织和结构
+
+良好的代码组织对于维护大型 Cypress 测试套件至关重要。以下是构建项目的建议：
+
+### 1.1 目录结构
+
+```
+cypress/
+├── e2e/                   # 端到端测试
+│   ├── example.cy.js      # 示例测试文件
+│   └── ...
+├── fixtures/              # 测试数据
+│   ├── example.json       # 示例固定数据文件
+│   └── ...
+├── support/               # 自定义命令和工具函数
+│   ├── commands.js        # 自定义 Cypress 命令
+│   ├── e2e.js             # 在每个测试文件之前运行
+│   └── ...
+├── downloads/             # 测试下载文件的目录
+├── screenshots/           # 测试失败截图目录
+├── videos/                # 测试执行视频目录
+cypress.config.js          # Cypress 配置文件
+package.json               # Node.js 包文件
+```
+
+**说明：**
+
+- `e2e/`：包含您的端到端测试。按功能或组件组织测试。
+- `fixtures/`：存储静态测试数据（JSON 文件）。使用固定数据避免在测试中硬编码数据。
+- `support/`：保存自定义命令和工具函数。这促进了代码重用并保持测试简洁。
+- `downloads/`、`screenshots/`、`videos/`：Cypress 自动管理这些测试工件目录。
+- `cypress.config.js`：Cypress 的主配置文件。
+- `package.json`：标准的 Node.js 包定义。
+
+### 1.2 文件命名约定
+
+- 测试文件：`[功能].cy.js` 或 `[组件].spec.js`（例如，`login.cy.js`、`userProfile.spec.js`）
+- 固定数据文件：`[数据描述].json`（例如，`valid_user.json`、`product_details.json`）
+- 自定义命令文件：`[命令名称].js`（如果在 support/ 中创建多个命令文件）
+
+### 1.3 模块组织
+
+- **自定义命令**：将自定义命令放在 `cypress/support/commands.js` 中。为相关命令创建单独的文件并将它们导入到 `commands.js` 中以改善组织。
+- **页面对象**：如果使用页面对象模型（见下文），为每个页面对象创建单独的文件并将它们存储在专用目录中（例如，`cypress/page_objects/`）。
+- **工具函数**：为常见任务（例如，数据生成、API 调用）创建工具函数并将它们存储在 `cypress/support/utils.js` 或类似命名的文件/目录中。
+
+### 1.4 组件架构
+
+虽然 Cypress 主要用于端到端测试，但从组件角度思考可以帮助构建测试：
+
+#### 页面对象模型（POM）
+一种设计模式，其中应用程序的每个页面或部分都表示为一个类。该类包含页面上元素的选择器和与这些元素交互的方法。这集中了元素选择并减少了代码重复。
+
+```javascript
+// cypress/page_objects/loginPage.js
+class LoginPage {
+  getEmailField() {
+    return cy.get('[data-cy="email"]');
+  }
+
+  getPasswordField() {
+    return cy.get('[data-cy="password"]');
+  }
+
+  getSubmitButton() {
+    return cy.get('[data-cy="submit"]');
+  }
+
+  login(email, password) {
+    this.getEmailField().type(email);
+    this.getPasswordField().type(password);
+    this.getSubmitButton().click();
+  }
+}
+
+export default new LoginPage();
+
+// cypress/e2e/login.cy.js
+import loginPage from '../page_objects/loginPage';
+
+describe('登录', () => {
+  it('应该成功登录', () => {
+    cy.visit('/login');
+    loginPage.login('test@example.com', 'password');
+    cy.url().should('include', '/dashboard');
+  });
+});
+```
+
+### 1.5 代码分割
+
+Cypress 不像前端应用程序那样直接支持代码分割。但是，您仍然可以将代码组织成更小、可管理的文件以提高可维护性和可读性。使用 `require()` 或 ES 模块导入（`import/export`）将代码分割成模块。
+
+## 2. 常见模式和反模式
+
+### 2.1 设计模式
+
+#### 页面对象模型（POM）
+见上文。封装页面特定逻辑。
+
+#### 自定义命令
+为频繁使用的操作创建自定义命令。这使测试更具可读性并减少代码重复。
+
+```javascript
+// cypress/support/commands.js
+Cypress.Commands.add('login', (email, password) => {
+  cy.request('POST', '/api/login', { email, password }).then((response) => {
+    cy.setCookie('auth_token', response.body.token);
+    cy.visit('/dashboard'); // 或应用程序如何导航
+  });
+});
+
+// cypress/e2e/dashboard.cy.js
+describe('仪表板', () => {
+  it('应该显示用户信息', () => {
+    cy.login('user@example.com', 'password');
+    cy.contains('欢迎，用户');
+  });
+});
+```
+
+#### 固定数据
+从固定数据文件加载测试数据以保持测试数据驱动并避免硬编码值。
+
+```javascript
+// cypress/fixtures/user.json
+{
+  "email": "test@example.com",
+  "password": "password"
+}
+
+// cypress/e2e/login.cy.js
+describe('登录', () => {
+  it('应该使用有效凭据登录', () => {
+    cy.fixture('user').then((user) => {
+      cy.visit('/login');
+      cy.get('[data-cy="email"]').type(user.email);
+      cy.get('[data-cy="password"]').type(user.password);
+      cy.get('[data-cy="submit"]').click();
+      cy.url().should('include', '/dashboard');
+    });
+  });
+});
+```
+
+### 2.2 常见任务的推荐方法
+
+- **登录**：使用 `cy.request()` 以编程方式登录（如上面的示例所示）。这比通过 UI 登录更快、更可靠。
+- **选择元素**：使用 `data-*` 属性选择元素。这使测试对 CSS 或 JavaScript 的更改更具弹性。
+- **等待 API 调用**：使用 `cy.intercept()` 等待特定的 API 调用，然后再继续测试。避免使用带有固定超时的 `cy.wait()`。
+- **处理异步操作**：Cypress 自动等待元素变为可用，因此避免使用手动超时。
+
+### 2.3 要避免的反模式和代码异味
+
+- **硬编码数据**：避免在测试中直接硬编码数据。使用固定数据代替。
+- **使用脆弱的选择器**：避免使用可能更改的 CSS 类或 ID。
+- **依赖固定超时**：避免使用带有固定超时的 `cy.wait()`。使用 `cy.intercept()` 或 Cypress 的内置等待机制。
+- **链接过多命令**：虽然命令链接很强大，但过度链接会使测试更难阅读和调试。将复杂的链分解为更小、更易管理的块。
+- **在测试之间共享状态**：每个测试都应该是独立的，不依赖其他测试留下的状态。使用 `beforeEach()` 为每个测试设置干净的状态。
+- **测试实现细节**：测试应该关注用户的角度，而不是测试可能更改的实现细节。
+- **忽略错误消息**：注意错误消息并使用它们来调试测试。
+- **过度依赖 UI 进行设置**：在可能的情况下，使用 `cy.request` 以编程方式设置应用程序状态来播种数据或直接登录用户，而不是为每个测试导航 UI。
+
+### 2.4 状态管理
+
+- Cypress 测试应该是独立和自包含的。每个测试都应该设置自己的初始状态。使用 `beforeEach()` 钩子在每个测试之前重置状态。
+- 使用 `cy.request()` 播种数据或直接登录用户以设置应用程序状态。
+- 避免在测试之间共享状态，因为这可能导致不可靠和不可预测的结果。使用 `cy.clearCookies()`、`cy.clearLocalStorage()` 和 `cy.clearSessionStorage()` 在测试之间清除数据。
+
+### 2.5 错误处理
+
+- Cypress 提供详细的错误消息，可以帮助您调试测试。注意这些消息并使用它们来识别问题的根本原因。
+- 在自定义命令或工具函数中使用 `try...catch` 块处理错误。
+- 使用 `Cypress.on('uncaught:exception', (err, runnable) => { ... })` 处理应用程序中的未捕获异常。
+
+## 3. 性能考虑
+
+### 3.1 优化技术
+
+- **最小化 UI 交互**：使用 `cy.request()` 设置应用程序状态，而不是与 UI 交互。
+- **使用 `cy.intercept()` 等待**：等待特定的 API 调用，而不是使用固定超时。
+- **并行运行测试**：Cypress Cloud 启用并行测试执行以减少总体测试时间。
+- **优化选择器**：使用快速定位元素的高效选择器。
+- **使用标签过滤测试**：使用标签根据功能或组件有选择地运行测试。
+
+### 3.2 内存管理
+
+- Cypress 在浏览器中运行，因此内存管理通常由浏览器处理。但是，了解应用程序中的潜在内存泄漏很重要。
+- 避免在测试中创建大型数据结构。
+- 使用 `cy.clearCookies()`、`cy.clearLocalStorage()` 和 `cy.clearSessionStorage()` 在测试之间清除数据。
+
+### 3.3 包大小优化
+
+- 测试文件的大小可能会影响测试的性能。尽可能保持测试文件小。
+- 从测试文件中删除未使用的代码。
+- 使用打包器（例如，Webpack、Parcel）打包测试文件。
+
+## 4. 安全最佳实践
+
+### 4.1 常见漏洞及其预防
+
+- **跨站脚本（XSS）**：通过在应用程序中正确转义用户输入来防止 XSS 漏洞。Cypress 可用于通过向输入字段注入恶意代码并验证其是否正确转义来测试 XSS 漏洞。
+- **跨站请求伪造（CSRF）**：通过在应用程序中使用 CSRF 令牌来防止 CSRF 漏洞。Cypress 可用于通过尝试在没有有效 CSRF 令牌的情况下提交表单来测试 CSRF 漏洞。
+- **SQL 注入**：通过使用参数化查询或 ORM 来防止 SQL 注入漏洞。Cypress 可用于通过向输入字段注入恶意 SQL 代码并验证其是否正确转义来测试 SQL 注入漏洞。
+
+### 4.2 输入验证
+
+- 在客户端和服务器端验证所有用户输入。
+- 使用强输入验证来防止恶意输入到达您的应用程序。
+- Cypress 可用于通过提供无效输入并验证应用程序是否正确处理它来测试输入验证。
+
+### 4.3 身份验证和授权
+
+- 使用安全的身份验证和授权系统。
+- 使用强密码并强制执行密码复杂性要求。
+- 使用多因素身份验证以增加安全性。
+- Cypress 可用于通过尝试在没有适当凭据的情况下访问受保护的资源来测试身份验证和授权。
+
+### 4.4 数据保护
+
+- 通过在静态和传输中加密敏感数据来保护敏感数据。
+- 使用 HTTPS 加密传输中的数据。
+- 将敏感数据存储在安全位置。
+- Cypress 可用于通过验证敏感数据是否正确加密来测试数据保护。
+
+### 4.5 安全的 API 通信
+
+- 对所有 API 通信使用 HTTPS。
+- 使用 API 密钥或其他身份验证机制来保护您的 API。
+- 验证从 API 接收的所有数据。
+- Cypress 可用于通过尝试在没有适当凭据的情况下访问 API 或发送无效数据来测试 API 安全性。
+
+## 5. 测试方法
+
+### 5.1 单元测试
+
+虽然 Cypress 擅长端到端测试，但单元测试对于独立测试单个组件仍然很重要。使用 Mocha 或 Jest 等单元测试框架进行单元测试。对于与 UI 大量交互的组件，考虑使用 Cypress 组件测试。
+
+### 5.2 集成测试
+
+集成测试验证应用程序的不同部分是否正确协作。Cypress 可用于通过测试不同组件或服务之间的交互来编写集成测试。
+
+### 5.3 端到端测试
+
+端到端测试从用户角度验证整个应用程序是否正确工作。Cypress 非常适合编写端到端测试。专注于测试关键用户流程和关键功能。
+
+### 5.4 测试组织
+
+- 按功能或组件组织测试。
+- 为测试文件和测试用例使用描述性名称。
+- 使用标签对测试进行分类。
+- 创建清晰一致的测试策略。
+
+### 5.5 模拟和存根
+
+- **模拟**：用模拟对象替换依赖项，该对象模拟依赖项的行为。使用 `cy.stub()` 模拟函数，使用 `cy.intercept()` 模拟 API 调用。
+- **存根**：用预定义响应覆盖函数或 API 调用的行为。使用 `cy.stub()` 存根函数，使用 `cy.intercept()` 存根 API 调用。
+- 使用模拟和存根来隔离测试并控制外部依赖项的行为。这使测试更可预测和可靠。
+
+## 6. 常见陷阱和注意事项
+
+### 6.1 常见错误
+
+- 使用脆弱的选择器
+- 依赖固定超时
+- 在测试之间共享状态
+- 测试实现细节
+- 忽略错误消息
+- 不使用自定义命令
+- 不使用固定数据
+- 尝试跨不同域测试（Cypress 在这里有限制）
+
+### 6.2 边缘情况
+
+- 处理复杂的 UI 交互（例如，拖放、文件上传）
+- 测试异步操作
+- 测试 WebSockets
+- 测试 iframe
+- 测试第三方集成
+
+### 6.3 版本特定问题
+
+- 了解新版本 Cypress 中的破坏性更改。有关详细信息，请参阅 Cypress 更改日志。
+- 升级 Cypress 后测试您的测试。
+
+### 6.4 兼容性问题
+
+- Cypress 主要支持基于 Chromium 的浏览器（Chrome、Edge）。对 Firefox 的有限支持和对 Safari 的实验性支持。
+- 了解 Cypress 与其他技术（例如，React、Angular、Vue.js）之间的兼容性问题。
+
+### 6.5 调试策略
+
+- 使用 Cypress 测试运行器逐步执行测试并检查应用程序状态。
+- 使用浏览器的开发者工具调试测试。
+- 使用 `console.log()` 语句将数据记录到控制台。
+- 使用 `cy.pause()` 暂停测试执行并检查应用程序状态。
+- 使用 Cypress Cloud 获得高级调试功能，如时间旅行和视频录制。
+
+## 7. 工具和环境
+
+### 7.1 推荐的开发工具
+
+- **IDE**：带有 Cypress 扩展的 Visual Studio Code
+- **浏览器**：Chrome 或 Edge
+- **Node.js**：最新 LTS 版本
+- **NPM 或 Yarn**：包管理器
+
+### 7.2 构建配置
+
+- 使用打包器（例如，Webpack、Parcel）打包测试文件
+- 配置打包器以优化测试文件的性能
+- 使用环境变量为不同环境配置测试
+
+### 7.3 代码检查和格式化
+
+- 使用 ESLint 和 Prettier 检查和格式化代码
+- 配置 ESLint 和 Prettier 以强制执行一致的编码风格
+- 使用 Cypress ESLint 插件捕获常见的 Cypress 特定错误
+
+### 7.4 部署
+
+- 将 Cypress 测试作为 CI/CD 管道的一部分运行
+- 使用 Cypress Cloud 并行运行测试并获得详细的测试结果
+- 在部署到生产环境之前将 Cypress 测试部署到暂存环境
+
+### 7.5 CI/CD 集成
+
+- 将 Cypress 与 CI/CD 管道集成（例如，GitHub Actions、Jenkins、CircleCI）
+- 在每次提交或拉取请求时自动运行 Cypress 测试
+- 使用 Cypress Cloud 存储测试结果并跟踪测试历史
+- 配置 CI/CD 管道在 Cypress 测试失败时失败
+
+通过遵循这些最佳实践，您可以创建一个健壮且可维护的 Cypress 测试套件，确保 Web 应用程序的质量。

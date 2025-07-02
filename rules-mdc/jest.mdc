@@ -1,0 +1,523 @@
+---
+description: 本规范提供了使用 Jest 编写清洁、可维护和有效测试的指导原则。涵盖代码组织、性能、常见陷阱以及测试 JavaScript 和 TypeScript 项目的最佳实践。
+globs: "*.js,*.jsx,*.ts,*.tsx,*.mjs,*.cjs,*.mts,*.cts"
+---
+# Jest 测试最佳实践：综合指南
+
+## 基本原则
+
+### 按功能或模块组织测试
+- 将测试分组到与它们正在测试的功能或模块相对应的文件或目录中。这使得定位和维护测试变得更容易。
+- 在源代码文件旁边创建 `__tests__` 目录。这是 Jest 识别的常见约定。
+
+```
+src/
+├── components/
+│   ├── Button/
+│   │   ├── Button.jsx
+│   │   ├── Button.test.jsx
+│   │   └── __tests__/
+│   │       └── Button.integration.test.jsx
+│   └── UserCard/
+│       ├── UserCard.jsx
+│       └── UserCard.test.jsx
+├── utils/
+│   ├── helpers.js
+│   └── helpers.test.js
+```
+
+### 使用描述性的测试名称
+- 编写清楚描述测试正在验证什么的测试名称。这使得理解每个测试的目的和诊断失败变得更容易。
+- 使用 `describe` 和 `it` 块来构建测试并提供上下文。
+
+```javascript
+describe('用户身份验证', () => {
+  it('应该使用有效凭据登录用户', () => {
+    // 测试逻辑
+  });
+
+  it('应该拒绝无效凭据', () => {
+    // 测试逻辑
+  });
+
+  it('应该在多次失败尝试后锁定账户', () => {
+    // 测试逻辑
+  });
+});
+```
+
+### 保持测试隔离和独立
+- 每个测试都应该独立于其他测试。避免在测试之间共享状态或依赖项。
+- 使用 `beforeEach` 和 `afterEach` 钩子为每个测试设置和清理环境。
+
+```javascript
+describe('购物车功能', () => {
+  let cart;
+
+  beforeEach(() => {
+    cart = new ShoppingCart();
+  });
+
+  afterEach(() => {
+    cart.clear();
+  });
+
+  it('应该添加商品到购物车', () => {
+    cart.addItem({ id: 1, name: '商品1', price: 100 });
+    expect(cart.getItemCount()).toBe(1);
+  });
+});
+```
+
+### 避免测试实现细节
+- 专注于测试代码的公共 API，而不是内部实现细节。
+- 这使您的测试对实现更改更具弹性。
+- 测试"什么"，而不是"如何"。
+
+```javascript
+// ❌ 错误：测试实现细节
+it('应该调用 validateEmail 函数', () => {
+  const spy = jest.spyOn(userService, 'validateEmail');
+  userService.createUser({ email: 'test@example.com' });
+  expect(spy).toHaveBeenCalled();
+});
+
+// ✅ 正确：测试行为
+it('应该拒绝无效的邮箱地址', () => {
+  expect(() => {
+    userService.createUser({ email: 'invalid-email' });
+  }).toThrow('邮箱地址无效');
+});
+```
+
+## 1. 代码组织和结构
+
+### 1.1 目录结构最佳实践
+- 将测试文件与它们测试的组件/模块一起组织（例如，`src/components/MyComponent/MyComponent.test.js`）
+- 使用一致的目录结构便于导航
+
+### 1.2 文件命名约定
+- 为测试文件使用 `.test.js` 或 `.spec.js` 后缀（例如，`MyComponent.test.js`、`MyModule.spec.ts`）
+- 保持测试文件名与被测试文件名一致
+
+### 1.3 模块组织
+- 将测试文件保持在它们正在测试的模块附近
+- 为测试文件使用一致的命名约定
+
+### 1.4 组件架构
+- 独立测试组件，必要时模拟依赖项
+- 使用浅渲染进行单元测试，使用完整渲染进行集成测试
+
+### 1.5 代码分割策略
+- 确保测试覆盖动态导入模块中的所有代码路径
+
+## 2. 常见模式和反模式
+
+### 2.1 Jest 特定的设计模式
+
+#### 页面对象模型（POM）
+用于 UI 测试的模式，将页面元素和操作封装在类中。
+
+```javascript
+// pageObjects/LoginPage.js
+class LoginPage {
+  constructor(page) {
+    this.page = page;
+    this.emailInput = '[data-testid="email-input"]';
+    this.passwordInput = '[data-testid="password-input"]';
+    this.submitButton = '[data-testid="submit-button"]';
+  }
+
+  async login(email, password) {
+    await this.page.fill(this.emailInput, email);
+    await this.page.fill(this.passwordInput, password);
+    await this.page.click(this.submitButton);
+  }
+}
+```
+
+#### 工厂模式
+用于测试数据生成的模式。
+
+```javascript
+// factories/userFactory.js
+export const createUser = (overrides = {}) => ({
+  id: Math.random().toString(36),
+  name: '张三',
+  email: 'zhangsan@example.com',
+  age: 25,
+  ...overrides
+});
+
+// 在测试中使用
+const user = createUser({ name: '李四', age: 30 });
+```
+
+### 2.2 常见任务的推荐方法
+
+#### 模拟模块
+使用 `jest.mock` 模拟模块，`jest.spyOn` 监视方法。
+
+```javascript
+// 模拟整个模块
+jest.mock('../api/userService');
+
+// 模拟特定方法
+const mockGetUser = jest.spyOn(userService, 'getUser');
+mockGetUser.mockResolvedValue({ id: 1, name: '张三' });
+```
+
+#### 控制时间相关行为
+使用 `fakeTimers` 控制时间相关行为。
+
+```javascript
+describe('定时器测试', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('应该在延迟后执行回调', () => {
+    const callback = jest.fn();
+    setTimeout(callback, 1000);
+    
+    jest.advanceTimersByTime(1000);
+    expect(callback).toHaveBeenCalled();
+  });
+});
+```
+
+### 2.3 要避免的反模式和代码异味
+
+- **测试实现细节**：专注于行为而不是实现
+- **依赖全局状态**：每个测试应该是独立的
+- **创建脆弱的快照**：谨慎使用快照，定期审查更改
+
+### 2.4 状态管理最佳实践
+
+- 模拟外部状态依赖项
+- 使用 `expect` 断言验证状态更改
+
+```javascript
+// 测试 Redux reducer
+describe('userReducer', () => {
+  it('应该处理 SET_USER 动作', () => {
+    const initialState = { user: null };
+    const action = { type: 'SET_USER', payload: { id: 1, name: '张三' } };
+    
+    const newState = userReducer(initialState, action);
+    expect(newState.user).toEqual({ id: 1, name: '张三' });
+  });
+});
+```
+
+### 2.5 错误处理模式
+
+- 测试特定的错误消息
+- 确保错误边界得到适当测试
+
+```javascript
+it('应该抛出特定错误', () => {
+  expect(() => {
+    validateAge(-1);
+  }).toThrow('年龄必须是正数');
+});
+
+it('应该处理异步错误', async () => {
+  await expect(fetchUserData('invalid-id')).rejects.toThrow('用户未找到');
+});
+```
+
+## 3. 性能考虑
+
+### 3.1 优化技术
+
+#### 清理模拟
+在 `beforeEach` 块中使用 `jest.clearAllMocks` 和 `jest.resetAllMocks` 防止状态泄漏并提高测试性能。
+
+```javascript
+describe('API 测试', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+});
+```
+
+#### 避免不必要的大型数据结构
+在测试中避免创建不必要的大型数据结构。
+
+```javascript
+// ❌ 避免
+const largeArray = new Array(10000).fill(0).map((_, i) => ({ id: i }));
+
+// ✅ 更好
+const sampleData = [{ id: 1 }, { id: 2 }, { id: 3 }];
+```
+
+### 3.2 内存管理
+
+- 手动触发垃圾收集，在创建和释放大型对象的测试中
+- 避免在测试中创建不必要的大型数据结构
+
+### 3.3 渲染优化
+
+- 模拟昂贵的渲染逻辑以加速涉及 React 组件的测试
+
+```javascript
+// 模拟昂贵的组件
+jest.mock('../components/ExpensiveChart', () => {
+  return function MockExpensiveChart() {
+    return <div data-testid="mocked-chart">图表已模拟</div>;
+  };
+});
+```
+
+## 4. 安全最佳实践
+
+### 4.1 常见漏洞及其预防
+
+- 避免在测试快照中使用敏感数据
+- 清理测试数据以防止潜在的注入攻击
+
+```javascript
+// ❌ 避免在快照中包含敏感数据
+expect(userProfile).toMatchSnapshot(); // 可能包含密码或令牌
+
+// ✅ 清理敏感数据
+const sanitizedProfile = { ...userProfile };
+delete sanitizedProfile.password;
+delete sanitizedProfile.token;
+expect(sanitizedProfile).toMatchSnapshot();
+```
+
+### 4.2 输入验证
+
+- 测试输入验证逻辑并确保正确处理无效输入
+
+```javascript
+describe('输入验证', () => {
+  it('应该拒绝空邮箱', () => {
+    expect(() => validateEmail('')).toThrow('邮箱不能为空');
+  });
+
+  it('应该拒绝格式错误的邮箱', () => {
+    expect(() => validateEmail('invalid-email')).toThrow('邮箱格式无效');
+  });
+});
+```
+
+### 4.3 身份验证和授权模式
+
+- 模拟身份验证和授权逻辑以测试不同的用户角色和权限
+
+```javascript
+describe('权限测试', () => {
+  it('应该允许管理员访问', () => {
+    const mockUser = { role: 'admin' };
+    expect(canAccessAdminPanel(mockUser)).toBe(true);
+  });
+
+  it('应该拒绝普通用户访问', () => {
+    const mockUser = { role: 'user' };
+    expect(canAccessAdminPanel(mockUser)).toBe(false);
+  });
+});
+```
+
+## 5. 测试方法
+
+### 5.1 单元测试策略
+
+- 独立测试单个函数、类或组件
+
+```javascript
+describe('计算器工具', () => {
+  it('应该正确相加两个数字', () => {
+    expect(add(2, 3)).toBe(5);
+  });
+
+  it('应该处理负数', () => {
+    expect(add(-2, 3)).toBe(1);
+  });
+
+  it('应该处理小数', () => {
+    expect(add(0.1, 0.2)).toBeCloseTo(0.3);
+  });
+});
+```
+
+### 5.2 集成测试
+
+- 测试不同模块或组件之间的交互
+
+```javascript
+describe('用户注册流程', () => {
+  it('应该创建用户并发送欢迎邮件', async () => {
+    const userData = { email: 'test@example.com', password: 'password123' };
+    
+    const user = await userService.createUser(userData);
+    expect(user.id).toBeDefined();
+    
+    expect(emailService.sendWelcomeEmail).toHaveBeenCalledWith(user.email);
+  });
+});
+```
+
+### 5.3 端到端测试
+
+- 使用 Cypress 或 Playwright 等工具进行端到端测试
+
+### 5.4 测试组织
+
+- 根据功能或模块将测试分组到逻辑套件中
+
+```javascript
+describe('用户管理', () => {
+  describe('创建用户', () => {
+    it('应该创建有效用户', () => {
+      // 测试逻辑
+    });
+  });
+
+  describe('更新用户', () => {
+    it('应该更新用户信息', () => {
+      // 测试逻辑
+    });
+  });
+});
+```
+
+### 5.5 模拟和存根
+
+- 使用 `jest.mock` 和 `jest.spyOn` 为依赖项创建模拟和存根
+
+```javascript
+// 模拟 API 调用
+jest.mock('../api/userApi', () => ({
+  fetchUser: jest.fn(),
+  createUser: jest.fn(),
+}));
+
+// 在测试中使用
+import { fetchUser } from '../api/userApi';
+fetchUser.mockResolvedValue({ id: 1, name: '张三' });
+```
+
+## 6. 常见陷阱和注意事项
+
+### 6.1 开发者常犯的错误
+
+- 忘记模拟依赖项
+- 测试实现细节
+- 创建脆弱的快照
+
+### 6.2 需要注意的边缘情况
+
+- 正确测试异步代码
+- 处理错误
+- 测试不同的输入类型
+
+```javascript
+// 正确处理异步测试
+it('应该获取用户数据', async () => {
+  const userData = await fetchUser(1);
+  expect(userData.name).toBe('张三');
+});
+
+// 使用 resolves/rejects 匹配器
+it('应该解析用户数据', () => {
+  return expect(fetchUser(1)).resolves.toHaveProperty('name', '张三');
+});
+```
+
+### 6.3 版本特定问题
+
+- 了解 Jest 更新中的破坏性更改并相应更新测试
+
+### 6.4 兼容性问题
+
+- 确保测试与不同浏览器或环境兼容
+
+### 6.5 调试策略
+
+- 使用 `console.log` 语句、调试器或 Jest 的交互模式调试测试
+
+```javascript
+// 使用 Jest 的调试模式
+// 运行：node --inspect-brk node_modules/.bin/jest --runInBand
+it('调试测试', () => {
+  debugger; // 设置断点
+  const result = myFunction();
+  expect(result).toBe(expectedValue);
+});
+```
+
+## 7. 工具和环境
+
+### 7.1 推荐的开发工具
+
+- **VS Code**：带有 Jest Runner 扩展
+- **WebStorm**：内置 Jest 支持
+- **Jest Runner 扩展**：在编辑器中直接运行测试
+
+### 7.2 构建配置
+
+使用 `jest.config.js` 或 `package.json` 配置 Jest：
+
+```javascript
+// jest.config.js
+module.exports = {
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.js'],
+  moduleNameMapping: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/index.js',
+    '!src/reportWebVitals.js',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
+};
+```
+
+### 7.3 代码检查和格式化
+
+- 使用 ESLint 和 Prettier 强制执行代码风格并防止错误
+
+### 7.4 部署最佳实践
+
+- 将测试集成到 CI/CD 管道中以确保代码质量
+
+### 7.5 CI/CD 集成
+
+- 使用 GitHub Actions、Jenkins 或 CircleCI 等工具自动化测试和部署
+
+```yaml
+# .github/workflows/test.yml
+name: 测试
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+      - run: npm ci
+      - run: npm test -- --coverage
+      - run: npm run test:e2e
+```
+
+通过遵循这些最佳实践，您可以编写更可靠、可维护和有效的 Jest 测试，确保代码质量和应用程序稳定性。

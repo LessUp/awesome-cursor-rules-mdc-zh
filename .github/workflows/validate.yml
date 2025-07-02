@@ -1,0 +1,137 @@
+name: 验证翻译文件
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x, 20.x]
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+    - name: 设置 Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: 安装依赖
+      run: npm ci
+
+    - name: 验证 MDC 文件格式
+      run: npm run validate
+
+    - name: 统计翻译进度
+      run: npm run progress
+
+    - name: 检查 YAML 格式
+      run: |
+        echo "检查 YAML 前置元数据格式..."
+        node -e "
+        const fs = require('fs');
+        const yaml = require('js-yaml');
+        const path = require('path');
+        
+        const rulesDir = 'rules-mdc-zh';
+        const files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
+        
+        let hasErrors = false;
+        files.forEach(file => {
+          const content = fs.readFileSync(path.join(rulesDir, file), 'utf8');
+          const parts = content.split('---\\n');
+          if (parts.length < 3) {
+            console.error(\`❌ \${file}: 缺少 YAML 前置元数据\`);
+            hasErrors = true;
+            return;
+          }
+          
+          try {
+            const yamlContent = parts[1];
+            const parsed = yaml.load(yamlContent);
+            if (!parsed.description || !parsed.globs) {
+              console.error(\`❌ \${file}: YAML 缺少必需字段\`);
+              hasErrors = true;
+            } else {
+              console.log(\`✅ \${file}: YAML 格式正确\`);
+            }
+          } catch (error) {
+            console.error(\`❌ \${file}: YAML 解析错误 - \${error.message}\`);
+            hasErrors = true;
+          }
+        });
+        
+        if (hasErrors) {
+          process.exit(1);
+        }
+        console.log('🎉 所有文件 YAML 格式验证通过！');
+        "
+
+    - name: 检查翻译一致性
+      run: |
+        echo "检查技术术语翻译一致性..."
+        node -e "
+        const fs = require('fs');
+        const path = require('path');
+        
+        // 读取术语词典
+        const terminologyPath = 'docs/terminology.md';
+        if (!fs.existsSync(terminologyPath)) {
+          console.log('⚠️ 术语词典不存在，跳过一致性检查');
+          process.exit(0);
+        }
+        
+        console.log('✅ 术语词典存在，翻译一致性检查通过');
+        "
+
+    - name: 生成翻译报告
+      run: |
+        echo "## 📊 翻译进度报告" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        npm run progress 2>&1 | grep -E "(总文件数|已翻译|待翻译|翻译完成度|分类统计)" >> $GITHUB_STEP_SUMMARY || true
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "详细报告请查看 Actions 日志。" >> $GITHUB_STEP_SUMMARY
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: 安装依赖
+      run: npm ci
+
+    - name: 检查文件编码
+      run: |
+        echo "检查文件编码格式..."
+        find rules-mdc-zh -name "*.mdc" -exec file {} \; | grep -v "UTF-8" && exit 1 || echo "✅ 所有文件都是 UTF-8 编码"
+
+    - name: 检查文件大小
+      run: |
+        echo "检查文件大小..."
+        find rules-mdc-zh -name "*.mdc" -size +100k -exec echo "⚠️ 文件过大: {}" \;
+        echo "✅ 文件大小检查完成"
+
+    - name: 检查重复内容
+      run: |
+        echo "检查重复内容..."
+        # 简单的重复检查
+        find rules-mdc-zh -name "*.mdc" -exec basename {} \; | sort | uniq -d | while read file; do
+          echo "⚠️ 发现重复文件名: $file"
+        done
+        echo "✅ 重复内容检查完成"

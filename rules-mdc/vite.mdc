@@ -1,0 +1,224 @@
+---
+description: 此规则为使用 Vite 开发应用程序提供全面的最佳实践、编码标准和指南，涵盖从代码组织和性能到安全和测试的各个方面。
+globs: "*.js,*.jsx,*.ts,*.tsx,*.vue,*.svelte"
+---
+- **介绍：**
+  - 本文档概述了使用 Vite 开发应用程序的最佳实践，Vite 是一个快速且有主见的构建工具，旨在提供更好的开发体验。
+
+- **先决条件：**
+  - 确保安装了 Node.js 和 npm/yarn/pnpm。
+  - 熟悉 JavaScript/TypeScript、HTML 和 CSS。
+
+- **代码组织和结构：**
+  - **目录结构：**
+    - 采用基于功能或组件的模块化结构。
+    ```
+    src/
+    ├── components/
+    │   ├── Button/
+    │   │   ├── Button.tsx
+    │   │   ├── Button.module.css
+    │   │   └── Button.test.tsx
+    │   ├── Input/
+    │   │   └── ...
+    ├── pages/
+    │   ├── Home.tsx
+    │   ├── About.tsx
+    │   └── ...
+    ├── services/
+    │   ├── api.ts
+    │   └── ...
+    ├── utils/
+    │   ├── helpers.ts
+    │   └── ...
+    ├── App.tsx
+    ├── main.tsx
+    └── vite-env.d.ts
+    ```
+  - **文件命名约定：**
+    - 使用描述性和一致的名称。
+    - 组件文件：`ComponentName.tsx` 或 `component-name.tsx`。
+    - 样式文件：`ComponentName.module.css` 或 `component-name.module.css`。
+    - 测试文件：`ComponentName.test.tsx` 或 `component-name.test.tsx`。
+  - **模块组织：**
+    - 将相关文件分组到模块或文件夹中。
+    - 使用 `index.ts`（桶文件）简化导入。
+    ```typescript
+    // src/components/Button/index.ts
+    export { default as Button } from './Button';
+    ```
+  - **组件架构：**
+    - 优先使用小型、可重用的组件。
+    - 在 React 中使用函数组件和钩子（或在 Vue/Svelte 中使用等效功能）。
+    - 分离关注点：展示型组件与容器型组件。
+  - **代码分割策略：**
+    - 使用动态导入（`import()`）进行延迟加载。
+    - 使用 `React.lazy` 或 Vue 的动态组件功能分割路由。
+    - 配置 Vite 的 `rollupOptions.output.manualChunks` 进行细粒度控制。
+
+- **常见模式和反模式：**
+  - **设计模式：**
+    - **高阶组件（HOCs）：** 仔细考虑渲染属性或钩子等替代方案以获得更好的可组合性。
+    - **渲染属性：** 对在组件之间共享逻辑很有用，但可能导致深度嵌套结构。
+    - **钩子：** 促进代码重用并简化组件逻辑。
+  - **推荐方法：**
+    - 使用环境变量进行配置。
+    - 实施一致的 API 客户端进行数据获取。
+    - 使用 Redux、Zustand 或 Vuex 等库集中状态管理。
+  - **反模式：**
+    - 避免没有适当优化的深度嵌套组件树。
+    - 不要直接修改状态；使用 setState 或 Vue 的响应式系统。
+    - 过度使用全局样式；优先使用 CSS 模块或样式组件。
+  - **状态管理：**
+    - 根据应用程序复杂性选择状态管理解决方案。
+    - 使用 Redux 进行具有可预测状态转换和时间旅行调试的复杂状态管理。
+    - 考虑使用 Zustand 或 Jotai 进行包大小更小的简单状态管理。
+    - 对于 Vue，Vuex 或 Pinia 是流行的选择。
+  - **错误处理：**
+    - 实施全局错误边界捕获未处理的异常。
+    - 使用 try-catch 块进行本地错误处理。
+    - 将错误记录到中央错误跟踪服务（例如，Sentry、Rollbar）。
+
+- **性能考虑：**
+  - **优化技术：**
+    - 使用生产就绪的代码压缩和打包。
+    - 使用 `imagemin` 或 Vite 插件等工具优化图像和其他资源。
+  - **内存管理：**
+    - 通过正确清理事件监听器和订阅避免内存泄漏。
+    - 在 React 中使用带清理函数的 `useEffect`（或在 Vue 中使用 `onUnmounted`）。
+  - **渲染优化：**
+    - 使用记忆化技术（`React.memo`、`useMemo`、`shouldComponentUpdate`）防止不必要的重新渲染。
+    - 使用 `react-window` 或 `react-virtualized` 等库虚拟化大型列表。
+  - **包大小优化：**
+    - 使用 `rollup-plugin-visualizer` 或类似工具分析包大小。
+    - 使用树摇删除未使用的代码。
+    - 使用代码分割仅加载必要的代码。
+  - **延迟加载：**
+    - 延迟加载不立即可见的组件和图像。
+    - 使用 `IntersectionObserver` 在元素进入视口时触发加载。
+
+- **安全最佳实践：**
+  - **常见漏洞：**
+    - 跨站脚本（XSS）：清理用户输入以防止 XSS 攻击。
+    - 跨站请求伪造（CSRF）：使用 CSRF 令牌防止 CSRF 攻击。
+    - 注入攻击：验证和清理输入以防止 SQL 注入和其他注入攻击。
+  - **输入验证：**
+    - 在客户端和服务器端验证所有用户输入。
+    - 使用 `yup` 或 `joi` 等库进行模式验证。
+  - **身份验证和授权：**
+    - 使用安全的身份验证和授权机制（例如，OAuth 2.0、JWT）。
+    - 使用 bcrypt 或 Argon2 安全存储密码。
+  - **数据保护：**
+    - 对静态和传输中的敏感数据进行加密。
+    - 对所有通信使用 HTTPS。
+  - **安全 API 通信：**
+    - 实施适当的 CORS 配置以防止对 API 的未授权访问。
+    - 限制 API 请求速率以防止滥用。
+
+- **测试方法：**
+  - **单元测试：**
+    - 为单个组件和函数编写单元测试。
+    - 使用 Jest、Mocha 或 Vitest 等测试库。
+    - 模拟依赖项以隔离被测试的单元。
+  - **集成测试：**
+    - 测试应用程序不同部分之间的交互。
+    - 使用 React Testing Library 或 Vue Test Utils 等测试库。
+  - **端到端测试：**
+    - 从用户角度测试整个应用程序。
+    - 使用 Cypress 或 Playwright 等工具。
+  - **测试组织：**
+    - 根据功能或组件将测试组织到文件夹中。
+    - 使用描述性测试名称。
+  - **模拟和存根：**
+    - 使用模拟和存根隔离被测试的单元。
+    - 避免过度模拟；尽可能测试实际实现。
+
+- **常见陷阱和注意事项：**
+  - **常见错误：**
+    - 不正确处理异步操作。
+    - 忽视可访问性考虑。
+    - 使用过时的依赖项。
+  - **边缘情况：**
+    - 处理不同屏幕尺寸和设备。
+    - 支持国际化和本地化。
+    - 处理慢速网络连接。
+  - **版本特定问题：**
+    - 注意 Vite 及其插件的破坏性变更。
+    - 将依赖项固定到特定版本以避免意外问题。
+  - **兼容性问题：**
+    - 在不同浏览器和设备中测试应用程序。
+    - 使用 polyfills 支持较旧的浏览器。
+  - **调试策略：**
+    - 使用浏览器开发者工具检查 DOM、网络请求和控制台输出。
+    - 使用 `debugger` 或 `console.log` 等调试工具。
+
+- **工具和环境：**
+  - **推荐工具：**
+    - 带有 ESLint、Prettier 和 TypeScript 扩展的 VS Code。
+    - Chrome DevTools 或 Firefox Developer Tools。
+    - npm/yarn/pnpm 进行包管理。
+  - **构建配置：**
+    - 使用 `vite.config.ts` 或 `vite.config.js` 配置 Vite。
+    - 自定义构建选项，如 `outDir`、`assetsDir` 和 `rollupOptions`。
+  - **代码检查和格式化：**
+    - 使用带有推荐规则集的 ESLint（例如，`eslint:recommended`、`plugin:react/recommended`）。
+    - 使用 Prettier 进行代码格式化。
+    - 配置 ESLint 和 Prettier 协同工作。
+  - **部署最佳实践：**
+    - 部署到 CDN 以获得最佳性能。
+    - 使用环境变量进行配置。
+    - 设置适当的缓存标头。
+  - **CI/CD 集成：**
+    - 与 CI/CD 管道集成以进行自动化测试和部署。
+    - 使用 GitHub Actions、GitLab CI 或 CircleCI 等工具。
+
+- **TypeScript 最佳实践（使用 TypeScript 时）：**
+  - **严格类型检查：**
+    - 在 `tsconfig.json` 中启用严格类型检查选项（例如，`strict: true`、`noImplicitAny: true`、`strictNullChecks: true`）。
+  - **类型化 Props 和 State：**
+    - 使用接口或类型定义 props 和 state 的形状。
+    ```typescript
+    interface ButtonProps {
+      label: string;
+      onClick: () => void;
+    }
+
+    const Button: React.FC<ButtonProps> = ({ label, onClick }) => {
+      return <button onClick={onClick}>{label}</button>;
+    };
+    ```
+
+- **ESLint 配置（示例）：**
+  ```javascript
+  module.exports = {
+    env: {
+      browser: true,
+      es2021: true,
+      node: true,
+    },
+    extends: [
+      'eslint:recommended',
+      'plugin:react/recommended',
+      'plugin:@typescript-eslint/recommended',
+      'prettier',
+    ],
+    parser: '@typescript-eslint/parser',
+    parserOptions: {
+      ecmaFeatures: {
+        jsx: true,
+      },
+      ecmaVersion: 12,
+      sourceType: 'module',
+    },
+    plugins: ['react', '@typescript-eslint', 'prettier'],
+    rules: {
+      'prettier/prettier': 'error',
+      'react/react-in-jsx-scope': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  };
+  ```
+
+- **结论：**
+  - 遵循这些最佳实践将帮助您使用 Vite 构建高效、可维护和安全的应用程序。随着库和生态系统的发展，持续审查和更新您的实践。

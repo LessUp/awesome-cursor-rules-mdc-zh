@@ -1,0 +1,186 @@
+---
+description: TensorFlow 最佳实践综合指南，涵盖代码组织、性能、测试和安全性，用于构建强大且可维护的机器学习项目。
+globs: "*.py,*.tf,*.keras"
+---
+- **代码组织和结构：**
+  - **目录结构：**
+    - 将项目结构化为逻辑目录。例如：
+        
+        ```
+        project_root/
+        ├── data/
+        │   ├── raw/
+        │   └── processed/
+        ├── models/
+        │   ├── training/
+        │   └── saved_models/
+        ├── src/
+        │   ├── utils/
+        │   ├── layers/
+        │   ├── models/
+        │   ├── training/
+        │   └── evaluation/
+        ├── notebooks/  # 用于实验的 Jupyter notebooks
+        ├── tests/
+        ├── configs/
+        └── README.md
+        ```
+
+  - **文件命名约定：**
+    - 使用描述性和一致的名称。例如：
+        - `model_name.py`
+        - `data_processing.py`
+        - `train.py`
+        - `evaluate.py`
+        - `layer_name.py`
+
+  - **模块组织：**
+    - 将代码分解为可重用的模块和函数。
+    - 使用 `tf.Module` 和 Keras 层管理变量。这实现了封装并避免全局变量污染。
+    - 使用显式相对或绝对路径导入模块，如 `from src.models import MyModel`。
+    - 将相关功能分组到模块/包中。
+
+  - **组件架构：**
+    - 采用模块化设计原则。
+    - Keras `Layers` 和 `Models` 促进基于组件的架构。自定义层应继承自 `tf.keras.layers.Layer`。自定义模型继承自 `tf.keras.Model`。
+    - 使用依赖注入解耦组件并促进测试。
+
+  - **代码分割策略：**
+    - 将代码重构为更小、可管理的模块。
+    - 将数据加载、预处理、模型定义、训练和评估分离到不同的模块中。
+    - 为大型数据集实现生成器函数或 `tf.data.Dataset` 管道，避免一次性将所有数据加载到内存中。
+
+- **常见模式和反模式：**
+  - **设计模式：**
+    - **策略模式：** 为优化或正则化使用不同策略。
+    - **工厂模式：** 基于配置动态创建模型架构。
+    - **观察者模式：** 监控训练进度并基于指标触发操作。
+
+  - **推荐方法：**
+    - 使用 Keras 层和模型管理变量。Keras 处理底层 TensorFlow 操作。
+    - 利用 `tf.data.Dataset` 进行高效数据加载和预处理。
+    - 使用 `tf.function` 将 Python 函数编译为 TensorFlow 图以提高性能。
+
+  - **反模式和代码异味：**
+    - **上帝类：** 避免执行过多任务的单体类。将它们分解为更小、更专注的类或函数。
+    - **复制粘贴代码：** 将重复代码重构为可重用的函数或模块。
+    - **魔法数字：** 使用命名常量而不是硬编码值。
+    - **全局变量：** 最小化全局变量的使用，特别是模型参数。
+
+  - **状态管理：**
+    - 使用 Keras 层和模型管理模型状态（权重、偏置）。
+    - 使用 `tf.Variable` 对象管理训练期间需要跟踪的持久状态。
+    - 创建模型子类时，在 `build()` 方法中将可训练权重定义为 tf.Variable 对象。
+    - 考虑使用 `tf.saved_model` 保存和加载整个模型状态，包括计算图和变量值。
+
+  - **错误处理：**
+    - 使用 `tf.debugging.assert_*` 函数在开发和调试期间检查张量值。
+    - 实现 try-except 块处理潜在异常，如 `tf.errors.InvalidArgumentError` 或 `tf.errors.OutOfRangeError`。
+    - 使用 `tf.compat.v1.logging` 或标准 `logging` 模块记录错误和警告。
+    - 确保错误消息信息丰富且可操作。
+
+- **性能考虑：**
+  - **优化技术：**
+    - 使用 `tf.function` 将 Python 函数编译为 TensorFlow 图以提高性能。使用 autograph（自动图构建）。
+    - 使用 `tf.data.Dataset.prefetch` 和 `tf.data.Dataset.cache` 优化数据输入管道。
+    - 尝试不同的优化器（例如，Adam、SGD）和学习率。
+    - 调整某些 `tf.keras.*` 优化器的默认学习率。
+    - 使用 `tf.keras.mixed_precision.Policy` 进行混合精度训练，以减少内存使用并提高 GPU 性能。
+
+  - **内存管理：**
+    - 使用 `tf.data.Dataset` 从磁盘流式传输数据，而不是将所有数据加载到内存中。
+    - 使用 `del` 释放不必要的张量以释放内存。
+    - 使用 `tf.GradientTape` 高效计算梯度，避免在磁带中保持不必要的张量活跃。
+
+  - **GPU 利用：**
+    - 通过检查 `tf.config.list_physical_devices('GPU')` 确保 TensorFlow 正在使用 GPU。
+    - 使用更大的批次大小最大化 GPU 利用率。
+    - 使用 TensorFlow Profiler 分析代码以识别瓶颈并优化 GPU 使用。
+
+- **安全最佳实践：**
+  - **常见漏洞：**
+    - **不受信任的输入：** 验证所有用户提供的输入以防止恶意代码注入或数据投毒攻击。
+    - **模型投毒：** 防范可能操纵训练数据并降低模型性能的对抗性攻击。
+    - **模型反演：** 实施技术保护敏感数据不被从模型中提取。
+
+  - **输入验证：**
+    - 清理和验证所有输入数据以防止 SQL 注入、跨站脚本（XSS）和其他安全漏洞。
+    - 使用 `tf.io.decode_image` 安全解码图像并防止与格式错误的图像文件相关的潜在漏洞。
+    - 图像和文本数据的输入验证至关重要。
+
+  - **数据保护：**
+    - 对静态和传输中的敏感数据进行加密。
+    - 使用差分隐私技术保护训练数据的隐私。
+    - 定期审计代码和基础设施的安全漏洞。
+
+  - **安全的 API 通信：**
+    - 使用 HTTPS 加密客户端和服务器之间的通信。
+    - 实施身份验证和授权机制限制对敏感数据和功能的访问。
+
+- **测试方法：**
+  - **单元测试：**
+    - 使用 `unittest` 或 `pytest` 为单个函数和类编写单元测试。
+    - 使用 `tf.test.TestCase` 测试 TensorFlow 特定代码。
+    - 模拟外部依赖项以隔离被测试的代码。
+
+  - **集成测试：**
+    - 测试不同模块和组件的集成。
+    - 验证数据管道是否正常工作。
+    - 确保模型在真实世界数据上产生准确预测。
+
+  - **端到端测试：**
+    - 测试从数据加载到模型部署的整个工作流程。
+    - 使用 Selenium 或 Cypress 等工具自动化端到端测试。
+    - 测试性能和可扩展性。
+
+  - **测试组织：**
+    - 将测试组织到逻辑目录和模块中。
+    - 使用清晰和描述性的测试名称。
+    - 遵循 Arrange-Act-Assert 模式编写测试。
+
+  - **模拟和存根：**
+    - 使用 `unittest.mock` 或 `pytest-mock` 等模拟框架用模拟对象替换外部依赖项。
+    - 使用存根从外部依赖项提供受控响应。
+
+- **常见陷阱和注意事项：**
+  - **版本兼容性：**
+    - 在升级 TensorFlow 版本时注意版本特定问题和兼容性问题。
+    - 使用 `tf.compat.v1` 或 `tf.compat.v2` 保持与旧版本 TensorFlow 的兼容性。
+
+  - **急切执行：**
+    - 理解急切执行和图执行之间的差异。
+    - 使用 `tf.function` 将函数编译为图以在生产中提高性能。
+
+  - **张量形状和数据类型：**
+    - 注意张量形状和数据类型以避免错误。
+    - 使用 `tf.debugging.assert_shapes` 和 `tf.debugging.assert_type` 在开发期间检查张量形状和数据类型。
+
+  - **变量作用域：**
+    - 使用 `tf.Variable` 对象时注意变量作用域。
+    - 使用 `tf.compat.v1.get_variable` 在特定作用域内创建或重用变量。
+
+- **工具和环境：**
+  - **推荐的开发工具：**
+    - Jupyter Notebooks 或 Google Colab 用于交互式开发和实验。
+    - TensorBoard 用于可视化训练进度和模型图。
+    - TensorFlow Profiler 用于识别性能瓶颈。
+    - Python 调试器（pdb）等调试器用于逐步执行代码和检查变量。
+
+  - **代码检查和格式化：**
+    - 使用 pylint 或 flake8 等检查器强制执行代码风格指导原则。
+    - 使用 black 或 autopep8 等格式化程序自动格式化代码。
+
+  - **部署最佳实践：**
+    - 使用 TensorFlow Serving 在生产中部署模型。
+    - 使用 Docker 容器化应用程序并确保一致的部署。
+    - 使用 Vertex AI 等平台进行可扩展的模型训练和部署。
+
+  - **CI/CD 集成：**
+    - 将代码与持续集成/持续交付（CI/CD）管道集成。
+    - 使用 Jenkins、Travis CI 或 CircleCI 等工具自动化测试和部署。
+
+- **参考资料：**
+  - [TensorFlow Core](https://www.tensorflow.org/guide/effective_tf2)
+  - [TensorFlow 测试最佳实践](https://www.tensorflow.org/community/contribute/tests)
+  - [Medium - 使用 TensorFlow 改进机器学习模型的 10 个技巧](https://medium.com/decathlondigital/10-tips-to-improve-your-machine-learning-models-with-tensorflow-ba7c724761e2)
+  - [Quora - TensorFlow 的最佳实践是什么](https://www.quora.com/What-are-the-best-practices-with-TensorFlow)

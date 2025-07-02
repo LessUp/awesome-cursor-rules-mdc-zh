@@ -1,0 +1,419 @@
+---
+description: 本规范提供了 Redux 最佳实践的综合指导，涵盖代码结构、性能优化、测试策略和常见陷阱，以确保构建健壮且可维护的 Redux 应用程序。
+globs: "*.js,*.jsx,*.ts,*.tsx"
+---
+# Redux 最佳实践：综合指南
+
+**简介：** 本文档概述了使用 Redux 开发应用程序的最佳实践，涵盖从代码组织到性能优化的各个方面。
+
+## 1. 代码组织和结构
+
+### 1.1 目录结构
+以清晰且可维护的结构组织您的 Redux 相关文件。推荐使用基于功能的方法。
+
+```
+src/
+├── app/
+│   ├── store.js          # Redux store 配置
+├── features/
+│   ├── counter/          # 功能模块（例如，'counter'）
+│   │   ├── counterSlice.js    # Redux slice（reducers + actions）
+│   │   ├── Counter.jsx        # React 组件
+│   │   ├── counterAPI.js      # API 交互逻辑
+│   │   └── counterSelectors.js # 选择器
+│   ├── todos/
+│   │   └── ...
+├── components/           # 可重用的 UI 组件
+├── utils/               # 工具函数
+└── ...
+```
+
+### 1.2 文件命名约定
+为您的文件使用一致且描述性的名称。
+
+**示例：**
+- `counterSlice.js` 用于 Redux slice 文件
+- `Counter.jsx` 用于 React 组件
+- `counterActions.js` 或最好包含在 slice 中
+- `counterSelectors.js` 用于选择器
+
+### 1.3 模块组织
+将相关逻辑分组到模块中。每个功能都应该有自己的目录，包含其 Redux slice、组件和选择器。
+
+### 1.4 组件架构
+使用容器/展示组件模式将数据获取和状态管理逻辑与 UI 渲染分离。
+
+- **容器组件：** 连接到 Redux store 并将数据传递给展示组件。
+- **展示组件：** 专注于 UI 渲染，通过 props 接收数据和回调。
+
+### 1.5 代码分割策略
+实施代码分割以减少初始包大小并改善加载时间。
+
+- **基于路由的分割：** 根据当前路由加载应用程序的不同部分。
+- **基于组件的分割：** 懒加载不立即需要的组件。
+- 使用 `React.lazy` 和 `<Suspense>` 进行基于组件的分割。
+
+## 2. 常见模式和反模式
+
+### 2.1 设计模式
+
+#### Flux 标准动作（FSA）
+用于构建 Redux 动作的约定，包含 `type` 和可选的 `payload` 和 `error` 属性。
+
+```javascript
+// 标准动作格式
+const action = {
+  type: 'FETCH_USER_SUCCESS',
+  payload: { id: 1, name: '张三' },
+  error: false
+};
+```
+
+#### 选择器
+使用选择器（例如，使用 Reselect）高效地从 Redux store 派生数据。
+
+```javascript
+// selectors/userSelectors.js
+import { createSelector } from '@reduxjs/toolkit';
+
+const selectUsers = (state) => state.users;
+
+export const selectActiveUsers = createSelector(
+  [selectUsers],
+  (users) => users.filter(user => user.isActive)
+);
+```
+
+#### Thunks/Sagas
+使用 Redux Thunk 或 Redux Saga 管理异步副作用。
+
+```javascript
+// 使用 Redux Thunk 的异步动作
+export const fetchUser = (userId) => async (dispatch) => {
+  dispatch(fetchUserStart());
+  try {
+    const user = await api.getUser(userId);
+    dispatch(fetchUserSuccess(user));
+  } catch (error) {
+    dispatch(fetchUserFailure(error.message));
+  }
+};
+```
+
+### 2.2 推荐方法
+
+#### Redux Toolkit
+使用 Redux Toolkit 简化 Redux 开发并减少样板代码。
+
+```javascript
+// counterSlice.js
+import { createSlice } from '@reduxjs/toolkit';
+
+const counterSlice = createSlice({
+  name: 'counter',
+  initialState: { value: 0 },
+  reducers: {
+    increment: (state) => {
+      state.value += 1; // Redux Toolkit 使用 Immer，允许"变异"语法
+    },
+    decrement: (state) => {
+      state.value -= 1;
+    },
+    incrementByAmount: (state, action) => {
+      state.value += action.payload;
+    }
+  }
+});
+
+export const { increment, decrement, incrementByAmount } = counterSlice.actions;
+export default counterSlice.reducer;
+```
+
+#### 不可变性
+将状态视为不可变的，使用不可变数据结构或技术来更新它。
+
+#### 规范化
+规范化您的状态以减少数据重复并提高数据一致性。
+
+```javascript
+// 规范化状态结构
+const initialState = {
+  users: {
+    byId: {},
+    allIds: []
+  },
+  posts: {
+    byId: {},
+    allIds: []
+  }
+};
+```
+
+### 2.3 要避免的反模式和代码异味
+
+- **直接变异状态：** 永远不要直接变异状态。始终创建对象和数组的新副本。
+- **在组件中放置过多逻辑：** 保持组件专注于渲染。将复杂逻辑移到 reducers、选择器或中间件中。
+- **大型 Reducers：** 使用 `combineReducers` 将大型 reducers 拆分为更小、更易管理的 reducers。
+- **过度获取数据：** 只获取组件需要的数据。使用选择器从状态中派生特定的数据子集。
+
+### 2.4 状态管理最佳实践
+
+- **单一数据源：** 将所有应用程序状态保存在 Redux store 中。
+- **可预测的状态更新：** 确保状态更新是可预测和确定性的。
+- **最小化全局状态：** 只在 Redux store 中存储真正全局的数据。本地组件状态应用于 UI 特定数据。
+
+### 2.5 错误处理模式
+
+- **基于动作的错误处理：** 分发动作来指示错误并相应地更新状态。
+- **中间件错误处理：** 使用中间件捕获错误并将其记录到中央错误报告服务。
+
+```javascript
+// 错误处理中间件
+const errorMiddleware = (store) => (next) => (action) => {
+  try {
+    return next(action);
+  } catch (error) {
+    console.error('Redux 错误:', error);
+    // 发送到错误报告服务
+    errorReportingService.captureException(error);
+    throw error;
+  }
+};
+```
+
+## 3. 性能考虑
+
+### 3.1 优化技术
+
+#### 记忆化
+使用记忆化避免不必要的重新渲染。对函数组件使用 `React.memo`，对类组件使用 `shouldComponentUpdate`。
+
+```javascript
+// 使用 React.memo 优化组件
+const UserCard = React.memo(({ user, onEdit }) => {
+  return (
+    <div>
+      <h3>{user.name}</h3>
+      <p>{user.email}</p>
+      <button onClick={() => onEdit(user.id)}>编辑</button>
+    </div>
+  );
+});
+```
+
+#### 选择器
+使用带有记忆化的选择器（例如，Reselect）避免在输入状态未更改时重新计算派生数据。
+
+```javascript
+// 使用 Reselect 的记忆化选择器
+import { createSelector } from 'reselect';
+
+const selectUsers = (state) => state.users;
+const selectFilter = (state) => state.filter;
+
+export const selectFilteredUsers = createSelector(
+  [selectUsers, selectFilter],
+  (users, filter) => {
+    return users.filter(user => 
+      user.name.toLowerCase().includes(filter.toLowerCase())
+    );
+  }
+);
+```
+
+#### 批量更新
+将多个状态更新批处理为单个更新以减少重新渲染次数。
+
+#### 防抖/节流
+使用防抖或节流来限制更新频率。
+
+### 3.2 内存管理
+
+- **避免内存泄漏：** 组件卸载时清理事件监听器和计时器。
+- **优化数据结构：** 使用高效的数据结构来减少内存使用。
+
+### 3.3 渲染优化
+
+- **虚拟化：** 对大型列表使用虚拟化，只渲染可见项目。
+- **代码分割：** 通过将代码拆分为更小的块来减少初始包大小。
+
+### 3.4 包大小优化
+
+- **树摇：** 使用树摇从包中删除未使用的代码。
+- **压缩：** 压缩代码以减少包大小。
+- **压缩：** 使用 Gzip 或 Brotli 压缩包。
+
+### 3.5 懒加载策略
+
+- **基于路由的懒加载：** 按需加载不同的路由。
+- **基于组件的懒加载：** 使用 `React.lazy` 按需加载组件。
+
+## 4. 安全最佳实践
+
+### 4.1 常见漏洞
+
+- **跨站脚本（XSS）：** 通过清理用户输入和转义输出来防止 XSS 攻击。
+- **跨站请求伪造（CSRF）：** 使用反 CSRF 令牌防护 CSRF 攻击。
+- **数据注入：** 通过验证和清理输入来防止数据注入攻击。
+
+### 4.2 输入验证
+
+- **客户端验证：** 在客户端验证输入以向用户提供即时反馈。
+- **服务器端验证：** 在服务器端验证输入以确保数据完整性。
+
+### 4.3 身份验证和授权模式
+
+- **JWT（JSON Web Tokens）：** 使用 JWT 进行身份验证和授权。
+- **基于角色的访问控制（RBAC）：** 实施 RBAC 来控制对应用程序不同部分的访问。
+
+### 4.4 数据保护策略
+
+- **加密：** 对静态和传输中的敏感数据进行加密。
+- **数据掩码：** 掩码敏感数据以保护其免受未经授权的访问。
+
+### 4.5 安全的 API 通信
+
+- **HTTPS：** 使用 HTTPS 加密客户端和服务器之间的通信。
+- **API 速率限制：** 实施 API 速率限制以防止滥用。
+
+## 5. 测试方法
+
+### 5.1 单元测试策略
+
+#### 测试 Reducers
+测试 reducers 以确保它们正确更新状态。
+
+```javascript
+// counterSlice.test.js
+import counterReducer, { increment, decrement } from './counterSlice';
+
+describe('counter reducer', () => {
+  const initialState = { value: 0 };
+
+  it('应该处理初始状态', () => {
+    expect(counterReducer(undefined, { type: 'unknown' })).toEqual({
+      value: 0
+    });
+  });
+
+  it('应该处理 increment', () => {
+    const actual = counterReducer(initialState, increment());
+    expect(actual.value).toEqual(1);
+  });
+
+  it('应该处理 decrement', () => {
+    const actual = counterReducer(initialState, decrement());
+    expect(actual.value).toEqual(-1);
+  });
+});
+```
+
+#### 测试动作
+测试动作以确保它们分发正确的载荷。
+
+#### 测试选择器
+测试选择器以确保它们从状态中派生正确的数据。
+
+```javascript
+// selectors.test.js
+import { selectFilteredUsers } from './userSelectors';
+
+describe('user selectors', () => {
+  const mockState = {
+    users: [
+      { id: 1, name: '张三' },
+      { id: 2, name: '李四' }
+    ],
+    filter: '张'
+  };
+
+  it('应该选择过滤后的用户', () => {
+    const result = selectFilteredUsers(mockState);
+    expect(result).toEqual([{ id: 1, name: '张三' }]);
+  });
+});
+```
+
+### 5.2 集成测试
+
+- **测试组件：** 测试组件以确保它们正确渲染并与 Redux store 交互。
+- **测试中间件：** 测试中间件以确保它们正确处理副作用。
+
+### 5.3 端到端测试
+
+- **测试用户流程：** 测试用户流程以确保应用程序从用户角度按预期工作。
+
+### 5.4 测试组织
+
+以清晰且可维护的结构组织测试。
+
+```
+src/
+├── features/
+│   ├── counter/
+│   │   ├── counterSlice.test.js
+│   │   ├── Counter.test.jsx
+```
+
+### 5.5 模拟和存根
+
+- **模拟 API 调用：** 模拟 API 调用以在测试期间隔离组件和 reducers。
+- **存根依赖项：** 存根外部依赖项以在测试期间控制其行为。
+
+## 6. 常见陷阱和注意事项
+
+### 6.1 常见错误
+
+- **忘记返回状态：** Reducers 必须始终返回新状态。如果没有更改，返回原始状态。
+- **错误地更新嵌套对象：** 记住在更新嵌套对象时创建所有级别的副本。
+- **不正确地处理异步动作：** 错误使用 thunks 或 sagas 可能导致意外行为。
+
+### 6.2 边缘情况
+
+- **初始状态：** 确保正确定义初始状态。
+- **处理错误：** 优雅地处理错误并提供信息性错误消息。
+- **空状态：** 正确处理空状态以避免意外行为。
+
+### 6.3 版本特定问题
+
+- **React Redux v8 vs v7：** 了解 React Redux v8 中引入的更改，如改进的性能和新的 `useSyncExternalStore` 钩子。
+
+### 6.4 兼容性问题
+
+- **浏览器兼容性：** 确保应用程序在所有支持的浏览器中正确工作。
+- **设备兼容性：** 确保应用程序在所有支持的设备上正确工作。
+
+### 6.5 调试策略
+
+- **Redux DevTools：** 使用 Redux DevTools 扩展检查状态和跟踪动作。
+- **控制台日志记录：** 使用控制台日志记录调试代码和跟踪状态更改。
+- **调试工具：** 使用浏览器调试工具逐步执行代码和检查变量。
+
+## 7. 工具和环境
+
+### 7.1 推荐的开发工具
+
+- **Redux DevTools Extension：** 检查 Redux 状态和动作。
+- **VS Code with Redux Extension：** 为 Redux 提供代码完成、代码检查和调试支持。
+
+### 7.2 构建配置
+
+- **Webpack/Parcel/Rollup：** 使用模块打包器来打包代码并为生产环境优化。
+- **Babel：** 使用 Babel 将代码转译为较旧版本的 JavaScript。
+
+### 7.3 代码检查和格式化
+
+- **ESLint：** 使用 ESLint 强制执行代码风格并防止错误。
+- **Prettier：** 使用 Prettier 自动格式化代码。
+
+### 7.4 部署最佳实践
+
+- **环境变量：** 使用环境变量为不同环境配置应用程序。
+- **CDN：** 使用 CDN 提供静态资源。
+
+### 7.5 CI/CD 集成
+
+- **自动化测试：** 作为 CI/CD 管道的一部分自动运行测试。
+- **自动化部署：** 自动将应用程序部署到不同环境。
+
+这个综合指南应该帮助您构建健壮、可维护和高性能的 Redux 应用程序。记住要跟上 Redux 生态系统中最新的最佳实践和工具。
